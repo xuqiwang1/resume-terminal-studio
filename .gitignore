@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.npm-cache/
+
+# Build / packaging output
+dist/
+release/
+build/icon.iconset/
+
+# OS / editor
+.DS_Store
+.vscode/
+.cursor/
+.kiro/
+.agents/
+
+# Agent planning artifacts
+docs/superpowers/
+prototype/
+
+# Workspace runtime artifacts (generated at runtime, not source)
+workspace/active-resume.json
+workspace/active-resume.bak.json
+workspace/activity-log.ndjson
+workspace/activity-state.json
+workspace/selection-state.json
+workspace/pending-patch.json
+workspace/resume-export.html
+workspace/resume-export.pdf
+workspace/.electron-path
+workspace/resume-agent
+workspace/CLAUDE.md
+workspace/README.md
+workspace/*.rts.json
+workspace/history/
+
+# User materials and extracted text are private local data
+workspace/materials/*
+!workspace/materials/.gitkeep
+workspace/materials/.extracted/
+
+# Logs
+*.log

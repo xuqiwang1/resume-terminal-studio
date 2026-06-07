@@ -1,0 +1,38 @@
+{
+  "name": "Your Name",
+  "title": "Target Role | Availability | Internship Duration",
+  "contact": "Phone | Email | Location",
+  "summary": "",
+  "experience": [
+    {
+      "company": "Company Name",
+      "role": "Role Title",
+      "date": "YYYY.MM-YYYY.MM",
+      "details": "Describe your work with clear outcomes.\nUse one bullet or paragraph per line so AI edits can target individual lines."
+    }
+  ],
+  "projects": [
+    {
+      "name": "Project Name",
+      "role": "",
+      "date": "",
+      "details": "Describe the project goal, your contribution, and measurable result."
+    }
+  ],
+  "avatar": null,
+  "education": [
+    {
+      "school": "School Name",
+      "degree": "",
+      "major": "Major",
+      "date": "YYYY.MM-YYYY.MM",
+      "tag": ""
+    }
+  ],
+  "skills": [
+    {
+      "category": "Tools",
+      "content": "Figma, Excel, SQL"
+    }
+  ]
+}
