@@ -17,6 +17,9 @@ const runtime = createNativeMcpRuntime({
     },
     proposeSectionEdit(args) {
       return { id: "pending-1", ...args };
+    },
+    proposeBatchEdit(args) {
+      return { id: "pending-batch-1", kind: "batch", ...args };
     }
   }
 });
@@ -31,3 +34,12 @@ const pending = runtime.callTool("propose_section_edit", {
 });
 
 assert.equal(pending.id, "pending-1");
+
+const batchPending = runtime.callTool("propose_batch_edit", {
+  sessionId: "session-1",
+  title: "Fill education",
+  changes: []
+});
+
+assert.equal(batchPending.id, "pending-batch-1");
+assert.equal(batchPending.kind, "batch");

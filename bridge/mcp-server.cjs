@@ -199,6 +199,55 @@ const toolDefinitions = [
     }
   },
   {
+    name: "propose_batch_edit",
+    description: "Propose one coherent task with multiple structured resume changes. Use this when a meaningful edit spans multiple fields or items, such as filling education, rewriting one project entry, or updating summary plus one skill. This stages one batch pending patch for the user to accept or reject once in the app.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["title", "changes"],
+      properties: {
+        title: {
+          type: "string",
+          description: "Short task title shown in the pending review UI."
+        },
+        summary: {
+          type: "string",
+          description: "Optional one-line summary of the batch intent."
+        },
+        changes: {
+          type: "array",
+          minItems: 1,
+          description: "Structured batch changes. Each change requires operation, sectionId, and the fields needed by that operation.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["operation", "sectionId", "value"],
+            properties: {
+              operation: {
+                type: "string",
+                enum: ["replace_field", "replace_item", "append_item", "replace_section"]
+              },
+              sectionId: {
+                type: "string",
+                enum: ["title", "contact", "summary", "experience", "projects", "education", "skills"]
+              },
+              index: {
+                type: "integer",
+                minimum: 0
+              },
+              field: {
+                type: "string"
+              },
+              value: {
+                description: "String for text replacements, object for item replacements/appends."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
     name: "get_pending_patch",
     description: "Read the currently pending (proposed but not yet confirmed) patch, if any.",
     inputSchema: {
@@ -371,6 +420,24 @@ function callTool(name, args = {}) {
         diff: { before: pending.before, after: pending.after },
         message:
           "已生成待确认的改动草稿，尚未写入简历。请等待用户在 Resume Studio 工作台点击「接受」或「拒绝」。"
+      });
+    }
+    case "propose_batch_edit": {
+      const pending = runtime.callTool("propose_batch_edit", {
+        sessionId: activeSession.sessionId,
+        title: args.title,
+        summary: args.summary,
+        changes: args.changes
+      });
+      return textContent({
+        status: "pending_confirmation",
+        kind: pending.kind,
+        pendingId: pending.id,
+        title: pending.title,
+        summary: pending.summary || "",
+        changes: pending.changes,
+        message:
+          "已生成一组待确认的批量改动，尚未写入简历。请等待用户在 Resume Studio 工作台点击「接受」或「拒绝」。"
       });
     }
     case "get_pending_patch": {

@@ -17,6 +17,10 @@ function createNativeMcpRuntime({ sessionManager, core }) {
         sessionManager.assertWritableSession({ sessionId: args.sessionId });
         return core.proposeSectionEdit(args);
       }
+      if (name === "propose_batch_edit") {
+        sessionManager.assertWritableSession({ sessionId: args.sessionId });
+        return core.proposeBatchEdit(args);
+      }
       if (name === "confirm_pending_patch") {
         sessionManager.assertWritableSession({ sessionId: args.sessionId });
         return core.confirmPendingPatch(args);

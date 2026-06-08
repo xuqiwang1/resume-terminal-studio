@@ -40,6 +40,7 @@ const pending = core.proposeSectionEdit({
   content: "new summary"
 });
 
+assert.equal(pending.kind, "single");
 assert.equal(core.getPendingPatch().after, "new summary");
 assert.equal(core.getResume().summary, "");
 
@@ -105,5 +106,117 @@ const appendBulletPending = core.proposeSectionEdit({
 assert.equal(appendBulletPending.before, "");
 core.confirmPendingPatch({ sessionId: "session-1", pendingId: appendBulletPending.id });
 assert.equal(core.getResume().projects[0].details, "project one\nproject two\nproject three");
+
+core.setResume({
+  name: "Test",
+  title: "Old title",
+  contact: "Old contact",
+  summary: "",
+  experience: [],
+  projects: [],
+  education: [
+    {
+      school: "School Name",
+      degree: "Degree",
+      major: "Major",
+      date: "Date",
+      tag: ""
+    }
+  ],
+  skills: [{ category: "Product", content: "old content" }]
+});
+
+const batchPending = core.proposeBatchEdit({
+  sessionId: "session-1",
+  title: "Fill education",
+  summary: "Replace one entry and append one entry",
+  changes: [
+    {
+      operation: "replace_item",
+      sectionId: "education",
+      index: 0,
+      value: {
+        school: "北京师范大学",
+        degree: "硕士",
+        major: "社会学",
+        date: "2024.09 - 2027.06",
+        tag: "985"
+      }
+    },
+    {
+      operation: "append_item",
+      sectionId: "education",
+      value: {
+        school: "安徽大学",
+        degree: "本科",
+        major: "社会学",
+        date: "2020.09 - 2024.06",
+        tag: "211"
+      }
+    }
+  ]
+});
+
+assert.equal(batchPending.kind, "batch");
+assert.equal(batchPending.changes.length, 2);
+assert.equal(core.getResume().education.length, 1);
+
+core.confirmPendingPatch({ sessionId: "session-1", pendingId: batchPending.id });
+assert.equal(core.getResume().education[0].school, "北京师范大学");
+assert.equal(core.getResume().education[1].school, "安徽大学");
+
+core.setResume({
+  name: "Test",
+  summary: "",
+  experience: [],
+  projects: [],
+  education: [
+    {
+      school: "北京师范大学",
+      degree: "硕士",
+      major: "社会学",
+      date: "2024.09 - 2027.06",
+      tag: "985"
+    }
+  ],
+  skills: [{ category: "Product", content: "old content" }]
+});
+
+const rejectedBatch = core.proposeBatchEdit({
+  sessionId: "session-1",
+  title: "Rewrite summary and skills",
+  changes: [
+    { operation: "replace_section", sectionId: "summary", value: "new summary" },
+    {
+      operation: "replace_field",
+      sectionId: "skills",
+      index: 0,
+      field: "content",
+      value: "new content"
+    }
+  ]
+});
+
+core.rejectPendingPatch({ sessionId: "session-1", pendingId: rejectedBatch.id });
+assert.equal(core.getResume().summary, "");
+assert.equal(core.getResume().skills[0].content, "old content");
+
+assert.throws(
+  () =>
+    core.proposeBatchEdit({
+      sessionId: "session-1",
+      title: "Bad edit",
+      changes: [
+        {
+          operation: "replace_field",
+          sectionId: "education",
+          index: 9,
+          field: "school",
+          value: "x"
+        }
+      ]
+    }),
+  /education\[9\] does not exist/
+);
 
 fs.rmSync(tmp, { recursive: true, force: true });

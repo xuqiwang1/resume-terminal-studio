@@ -103,11 +103,12 @@ Resume Studio 自带本地 MCP server：
 | `get_resume` | 读取当前简历和工作区路径 |
 | `get_materials` | 一次读取已抽取素材，避免 agent 自己慢慢找文件 |
 | `propose_edit` | 提交一项待确认改动，包含 title/contact/正文 |
+| `propose_batch_edit` | 一次提交一组结构化待确认改动，适合教育/项目/多字段改写 |
 | `get_pending_patch` | 查看当前待确认项 |
 | `get_activity` | 读取最近活动 |
 | `get_selection` | 读取用户当前选中的字段 |
 
-所有 AI 写入都必须走 `propose_edit`。agent 负责读取素材并写好最终文案，Resume Studio 只暂存改动并展示 diff，不替 agent 二次改写；接受/拒绝只能在 APP 工作台里完成，MCP 和 `resume-agent` CLI 都不能替用户确认。
+所有 AI 写入都必须走 `propose_edit` 或 `propose_batch_edit`。agent 负责读取素材并写好最终文案，Resume Studio 只暂存改动并展示 diff，不替 agent 二次改写；接受/拒绝只能在 APP 工作台里完成，MCP 和 `resume-agent` CLI 都不能替用户确认。
 
 ## 历史存档
 

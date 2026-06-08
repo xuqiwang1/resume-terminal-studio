@@ -106,6 +106,7 @@ function check(name, cond) {
     check("tools/list includes get_context", toolNames.includes("get_context"));
     check("tools/list includes get_materials", toolNames.includes("get_materials"));
     check("tools/list includes propose_edit", toolNames.includes("propose_edit"));
+    check("tools/list includes propose_batch_edit", toolNames.includes("propose_batch_edit"));
     check("MCP agents cannot confirm patches themselves", !toolNames.includes("confirm_patch"));
     check("MCP agents cannot reject patches themselves", !toolNames.includes("reject_patch"));
     check("MCP agents cannot directly set title", !toolNames.includes("set_title"));
@@ -126,6 +127,33 @@ function check(name, cond) {
     send(5, "resources/read", { uri: "resume://context" });
     const contextResource = await waitFor(5);
     check("resume://context resource returns context", JSON.stringify(contextResource).includes("Built a local-first workflow"));
+
+    send(6, "tools/call", {
+      name: "propose_batch_edit",
+      arguments: {
+        title: "Fill education",
+        summary: "Replace one and append one",
+        changes: [
+          {
+            operation: "replace_item",
+            sectionId: "education",
+            index: 0,
+            value: {
+              school: "北京师范大学",
+              degree: "硕士",
+              major: "社会学",
+              date: "2024.09 - 2027.06",
+              tag: "985"
+            }
+          }
+        ]
+      }
+    });
+    const batchResponse = await waitFor(6);
+    const batchText = batchResponse.result?.content?.[0]?.text || "";
+    check("propose_batch_edit returns pending confirmation", batchText.includes('"status": "pending_confirmation"'));
+    check("propose_batch_edit returns batch kind", batchText.includes('"kind": "batch"'));
+    check("propose_batch_edit returns title", batchText.includes('"title": "Fill education"'));
   } finally {
     child.kill();
     fs.rmSync(tmp, { recursive: true, force: true });

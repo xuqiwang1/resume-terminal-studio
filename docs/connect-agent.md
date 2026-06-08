@@ -146,12 +146,13 @@ agy
 | `get_resume` | 读取当前简历 + 工作区路径 |
 | `get_materials` | 一次读取抽取素材，避免 agent 自己慢慢找文件 |
 | `propose_edit` | 提议修改（需用户确认） |
+| `propose_batch_edit` | 一次提交一组结构化改动（需用户确认），适合教育/项目/多字段任务 |
 | `propose_edit` + `bulletIndex` | 精确修改某条 bullet（行），不重写整段 |
 | `get_pending_patch` | 读取当前待确认项 |
 | `get_activity` | 读取活动日志 |
 | `get_selection` | 获取用户当前选中的字段 |
 
-Agent 不能确认、拒绝或直接写入简历；`title`、`contact` 和正文一样都通过 `propose_edit` 生成待确认 patch。接受/拒绝只能在 Resume Studio 工作台操作。
+Agent 不能确认、拒绝或直接写入简历；单字段改动通过 `propose_edit`，批量结构化任务通过 `propose_batch_edit` 生成待确认 patch。接受/拒绝只能在 Resume Studio 工作台操作。
 
 ## 推荐工作流
 

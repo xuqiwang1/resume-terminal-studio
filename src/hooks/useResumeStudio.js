@@ -49,6 +49,27 @@ function patchFieldId(sectionId, index) {
   return null;
 }
 
+function normalizePendingSection(sectionId) {
+  if (sectionId === "title" || sectionId === "contact") return "summary";
+  return sectionId || null;
+}
+
+function getPendingPatchPrimarySection(pending) {
+  if (!pending) return null;
+  if (pending.kind === "batch") {
+    return normalizePendingSection(pending.changes?.[0]?.sectionId);
+  }
+  return normalizePendingSection(pending.sectionId);
+}
+
+function describePendingPatch(pending) {
+  if (!pending) return "AI 改动";
+  if (pending.kind === "batch") {
+    return pending.title || `批量改动（${pending.changes?.length || 0} 项）`;
+  }
+  return pending.sectionId || "AI 改动";
+}
+
 function parseFieldId(fid) {
   if (!fid) return { sectionId: null, index: null, field: null };
   const parts = fid.split(".");
@@ -383,10 +404,7 @@ export function useResumeStudio() {
     stopPendingStream = subscribePendingUpdates((pending) => {
       setPendingPatch(pending);
       if (pending) {
-        const resolvedSection =
-          pending.sectionId === "title" || pending.sectionId === "contact"
-            ? "summary"
-            : pending.sectionId;
+        const resolvedSection = getPendingPatchPrimarySection(pending);
         setActiveSectionId(resolvedSection);
         setWorkingSection(resolvedSection);
       } else {
@@ -465,26 +483,25 @@ export function useResumeStudio() {
           setAvatarState(result.resume.avatar ?? null);
         }
       }
-      setDiff({ before: pendingPatch.before || "", after: pendingPatch.after || "" });
-      const fid = patchFieldId(pendingPatch.sectionId, pendingPatch.index);
-      if (fid) {
-        setPatchAnimation({
-          fieldId: fid,
-          before: pendingPatch.before || "",
-          after: pendingPatch.after || "",
-          active: true
-        });
+      if (pendingPatch.kind !== "batch") {
+        setDiff({ before: pendingPatch.before || "", after: pendingPatch.after || "" });
+        const fid = patchFieldId(pendingPatch.sectionId, pendingPatch.index);
+        if (fid) {
+          setPatchAnimation({
+            fieldId: fid,
+            before: pendingPatch.before || "",
+            after: pendingPatch.after || "",
+            active: true
+          });
+        }
       }
-      const resolvedSection =
-        pendingPatch.sectionId === "title" || pendingPatch.sectionId === "contact"
-          ? "summary"
-          : pendingPatch.sectionId;
+      const resolvedSection = getPendingPatchPrimarySection(pendingPatch);
       setActiveSectionId(resolvedSection);
       setActivityItems((current) => [
         {
           label: "Patch",
           state: "Confirmed",
-          text: `已接受 AI 改动并写入${pendingPatch.sectionId}。`
+          text: `已接受 AI 改动并写入${describePendingPatch(pendingPatch)}。`
         },
         ...current
       ]);
