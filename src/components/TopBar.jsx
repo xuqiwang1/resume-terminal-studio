@@ -9,7 +9,6 @@ export default function TopBar({
   currentFileName,
   isDesktop,
   onExportPdf,
-  onShowIntro,
 }) {
   const [exporting, setExporting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,7 +53,6 @@ export default function TopBar({
           <span className="bridge-dot" />
           {mcpLabel}
         </span>
-        <button className="ghost" onClick={onShowIntro}>产品页</button>
         <button className="ghost" onClick={onNewResume}>新建模板</button>
         <button className="ghost" onClick={onOpenHistory}>历史</button>
         <button className="ghost" onClick={onOpenLatest}>打开</button>

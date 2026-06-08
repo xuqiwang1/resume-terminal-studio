@@ -5,6 +5,7 @@ node_modules/
 # Build / packaging output
 dist/
 release/
+site-dist/
 build/icon.iconset/
 
 # OS / editor

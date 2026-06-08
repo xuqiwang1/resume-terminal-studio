@@ -17,6 +17,7 @@ Resume Studio 是一个本地优先的简历编辑工作台。它把桌面简历
 src/                  React 简历工作台
 electron/             Electron 主进程与桌面运行时
 bridge/               本地 bridge、MCP server、简历写入引擎
+site/                 独立官网 / landing page，不属于 APP 内部页面
 docs/                 架构与 agent 接入说明
 build/                APP 图标资源
 workspace-template/   打包用的非个人化默认简历模板
@@ -54,6 +55,20 @@ npm run build:desktop
 ```bash
 npm test
 ```
+
+预览独立官网：
+
+```bash
+open site/index.html
+```
+
+构建独立官网静态输出：
+
+```bash
+npm run site:build
+```
+
+官网输出目录为 `site-dist/`，属于生成产物，不提交到 GitHub。
 
 ## 素材摄入
 
@@ -160,6 +175,7 @@ WORKSPACE_DIR = "/Users/your-name/Documents/ResumeStudio"
 - `src/`
 - `electron/`
 - `bridge/`
+- `site/`
 - `docs/`
 - `build/icon.svg`
 - `build/icon.icns`
@@ -172,6 +188,7 @@ WORKSPACE_DIR = "/Users/your-name/Documents/ResumeStudio"
 - `node_modules/`
 - `dist/`
 - `release/`
+- `site-dist/`
 - `workspace/active-resume.json`
 - `workspace/materials/` 里的真实素材
 - `workspace/materials/.extracted/`

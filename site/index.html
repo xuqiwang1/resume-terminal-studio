@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Resume Studio is a local-first resume workbench for AI-assisted editing, MCP agents, reviewed patches, and PDF export."
+    />
+    <title>Resume Studio | Local-first resume workbench</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <header class="site-nav">
+      <a class="brand" href="#top" aria-label="Resume Studio home">
+        <span class="brand-mark">RS</span>
+        <span>Resume Studio</span>
+      </a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="#workflow">Workflow</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#agents">Agents</a>
+        <a href="#open-source">Open source</a>
+      </nav>
+      <a class="nav-cta" href="#open-source" aria-label="Open source details">
+        Open source <span>↓</span>
+      </a>
+    </header>
+
+    <main id="top">
+      <section class="hero section-grid">
+        <div class="hero-copy reveal">
+          <p class="eyebrow">Local-first resume workbench</p>
+          <h1>
+            <span>AI can draft</span>
+            <span>your resume.</span>
+            <span>It should not</span>
+            <span>overwrite it.</span>
+          </h1>
+          <p class="lede">
+            Resume Studio connects a desktop A4 editor, local materials, MCP-capable terminal agents, reviewed diffs,
+            version history, and PDF export into one controlled loop.
+          </p>
+          <div class="hero-actions" aria-label="Primary actions">
+            <a class="button primary" href="#download">Download <span>↓</span></a>
+            <a class="button secondary" href="#workflow">See the patch flow</a>
+          </div>
+        </div>
+
+        <div class="mock-shell hero-product reveal delay-1" aria-label="Product preview">
+          <div class="mock-window">
+            <div class="window-bar">
+              <span></span><span></span><span></span>
+              <strong>MCP Ready</strong>
+            </div>
+            <div class="workbench">
+              <aside class="tool-panel">
+                <p>Template</p>
+                <b>Professional</b>
+                <div class="slider"></div>
+                <div class="slider small"></div>
+                <div class="swatches">
+                  <span></span><span></span><span></span>
+                </div>
+              </aside>
+              <article class="paper-preview">
+                <small>Resume preview</small>
+                <h2>AI Product Manager</h2>
+                <div class="rule"></div>
+                <p>Agent workflow, product judgment, and transparent execution.</p>
+                <p>Local bridge keeps edits visible before they become resume content.</p>
+                <div class="patch-card">
+                  <b>Pending patch</b>
+                  <span>before → reviewed after</span>
+                </div>
+              </article>
+              <section class="terminal-card">
+                <span>$ codex</span>
+                <code>get_resume</code>
+                <code>read materials</code>
+                <code>propose_edit</code>
+              </section>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="problem reveal">
+        <p class="eyebrow">The problem</p>
+        <h2>Most AI resume tools optimize for instant generation. Real resumes need auditability.</h2>
+        <p>
+          Your resume contains private facts, sensitive timelines, and high-stakes claims. Resume Studio treats AI as a
+          collaborator that proposes changes, not a silent writer with direct access to your final document.
+        </p>
+      </section>
+
+      <section class="product-grid" aria-label="Product capabilities">
+        <article class="feature-card tall reveal">
+          <span>01</span>
+          <h3>Desktop workbench</h3>
+          <p>A real Electron app for editing, previewing, styling, saving, restoring, and exporting a resume.</p>
+        </article>
+        <article class="feature-card reveal delay-1">
+          <span>02</span>
+          <h3>Local materials</h3>
+          <p>Extract notes, PDFs, and spreadsheets into clean local markdown for agents to read.</p>
+        </article>
+        <article class="feature-card reveal delay-2">
+          <span>03</span>
+          <h3>MCP agent bridge</h3>
+          <p>Codex, Claude Code, and Antigravity CLI can inspect state and submit edits through standard tools.</p>
+        </article>
+        <article class="feature-card wide reveal delay-1">
+          <span>04</span>
+          <h3>Human-reviewed patch flow</h3>
+          <p>Every substantive rewrite enters a pending diff. Accept it, reject it, or keep iterating before it touches the resume.</p>
+        </article>
+      </section>
+
+      <section class="workflow section-grid" id="workflow">
+        <div class="section-copy reveal">
+          <p class="eyebrow">Workflow</p>
+          <h2>Materials → agent reads → propose_edit → diff → accept or reject → export PDF.</h2>
+        </div>
+        <ol class="flow-list">
+          <li class="reveal"><span>01</span><b>Drop materials into the local workspace.</b></li>
+          <li class="reveal delay-1"><span>02</span><b>Run ingest to create agent-readable markdown.</b></li>
+          <li class="reveal delay-2"><span>03</span><b>Ask a terminal agent to inspect context and draft changes.</b></li>
+          <li class="reveal delay-3"><span>04</span><b>Review the pending patch inside the desktop app.</b></li>
+          <li class="reveal delay-4"><span>05</span><b>Export a clean A4 PDF after approval.</b></li>
+        </ol>
+      </section>
+
+      <section class="privacy" id="privacy">
+        <div class="mock-shell privacy-panel reveal">
+          <div class="privacy-inner">
+            <p class="eyebrow">Privacy boundary</p>
+            <h2>Resume data and source materials stay local by default.</h2>
+            <p>
+              Runtime workspace files, extracted materials, history snapshots, and personal resumes are intentionally
+              excluded from the public repository. The open-source project ships source code and non-personal templates.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="agents section-grid" id="agents">
+        <div class="section-copy reveal">
+          <p class="eyebrow">Agent support</p>
+          <h2>Designed for terminal-native AI workflows.</h2>
+          <p>
+            Resume Studio does not hide the agent inside a web form. It exposes a local MCP server so existing developer
+            tools can read resume state, inspect materials, and submit reviewed changes.
+          </p>
+        </div>
+        <div class="agent-stack reveal delay-1">
+          <span>Codex</span>
+          <span>Claude Code</span>
+          <span>Antigravity CLI</span>
+        </div>
+      </section>
+
+      <section class="open-source" id="open-source">
+        <div class="section-copy reveal">
+          <p class="eyebrow">Open source</p>
+          <h2>Built as a local developer tool, documented as an open project.</h2>
+          <p>
+            The repository includes the React app, Electron runtime, bridge server, MCP tools, architecture notes,
+            security policy, contribution guide, and MIT license.
+          </p>
+        </div>
+      </section>
+
+      <section class="cta" id="download">
+        <p class="eyebrow">Setup</p>
+        <h2>Run locally, connect your agent, review every write.</h2>
+        <div class="command-card" aria-label="Install commands">
+          <code>npm install</code>
+          <code>npm run dev:desktop</code>
+          <code>npm run mcp</code>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Resume Studio</span>
+      <span>Local-first. MCP-ready. Human-reviewed.</span>
+    </footer>
+  </body>
+</html>

@@ -4,15 +4,13 @@ import ResumePreview from "./components/ResumePreview";
 import PrintView from "./components/PrintView";
 import PendingPatchBanner from "./components/PendingPatchBanner";
 import HistoryPanel from "./components/HistoryPanel";
-import LandingPage from "./components/LandingPage";
 import { useResumeStudio } from "./hooks/useResumeStudio";
 import { useTextSelection } from "./hooks/useTextSelection";
 import { exportPdf, isDesktopApp } from "./lib/fileClient";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 export default function App() {
   const desktop = isDesktopApp();
-  const [viewMode, setViewMode] = useState(() => (isDesktopApp() ? "studio" : "landing"));
   const resumePageRef = useRef(null);
   const printPageRef = useRef(null);
   const textSelection = useTextSelection(resumePageRef);
@@ -91,10 +89,6 @@ export default function App() {
     };
   }, [fitSinglePage]);
 
-  if (viewMode === "landing") {
-    return <LandingPage onEnterStudio={() => setViewMode("studio")} />;
-  }
-
   return (
     <div className="app-shell">
       <TopBar
@@ -106,7 +100,6 @@ export default function App() {
         currentFileName={currentFileName}
         isDesktop={desktop}
         onExportPdf={handleExportPdf}
-        onShowIntro={() => setViewMode("landing")}
       />
 
       <main className="workspace" id="workspace">
