@@ -17,6 +17,11 @@ build/icon.iconset/
 
 # Agent planning artifacts
 docs/superpowers/
+!docs/superpowers/
+docs/superpowers/*
+!docs/superpowers/specs/
+docs/superpowers/specs/*
+!docs/superpowers/specs/*.md
 prototype/
 demo/workspace/
 
