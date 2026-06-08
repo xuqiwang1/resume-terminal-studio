@@ -18,6 +18,7 @@ build/icon.iconset/
 # Agent planning artifacts
 docs/superpowers/
 prototype/
+demo/workspace/
 
 # Workspace runtime artifacts (generated at runtime, not source)
 workspace/active-resume.json

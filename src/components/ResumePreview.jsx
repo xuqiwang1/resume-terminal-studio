@@ -27,7 +27,7 @@ const ResumePreview = forwardRef(function ResumePreview({
   templateId, fontId, colorId,
   lineHeight, sectionGap, pagePadding, fontSize,
   ruleStyle, avatar, avatarPos, onAvatarPosChange,
-  layoutConfig, fieldStyles
+  layoutConfig, fieldStyles, onViewChange
 }, ref) {
   const containerRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
@@ -109,6 +109,35 @@ const ResumePreview = forwardRef(function ResumePreview({
     observer.observe(canvas);
     return () => observer.disconnect();
   }, [calculateScale]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let frame = null;
+    const sync = () => {
+      frame = null;
+      const scaledA4Height = 1123 * scale;
+      const visiblePage = Math.max(1, Math.floor(canvas.scrollTop / Math.max(1, scaledA4Height)) + 1);
+      const pageCount = Math.max(1, Math.ceil(contentHeight / 1123));
+      onViewChange?.({
+        visiblePage,
+        pageCount,
+        scrollTop: canvas.scrollTop,
+        zoom,
+        scale
+      });
+    };
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(sync);
+    };
+    canvas.addEventListener("scroll", onScroll, { passive: true });
+    sync();
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      canvas.removeEventListener("scroll", onScroll);
+    };
+  }, [contentHeight, scale, zoom, onViewChange]);
 
   return (
     <section className="canvas-panel">

@@ -22,6 +22,8 @@ export function eventSourceUrl(path) {
   return url.toString();
 }
 
+export const contextApiUrlForTest = apiUrl;
+
 function jsonHeaders() {
   return {
     "Content-Type": "application/json",
@@ -42,6 +44,42 @@ export function isDesktopApp() {
 export async function fetchActiveResume() {
   const response = await fetch(apiUrl("/api/resume/active"), { headers: authHeaders() });
   if (!response.ok) throw new Error("Failed to fetch active resume");
+  return response.json();
+}
+
+export async function fetchContext() {
+  const response = await fetch(apiUrl("/api/context"), { headers: authHeaders() });
+  if (!response.ok) throw new Error("Failed to fetch context");
+  return response.json();
+}
+
+export async function syncContextSelection(selection) {
+  const response = await fetch(apiUrl("/api/context/selection"), {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify(selection)
+  });
+  if (!response.ok) throw new Error("Failed to sync context selection");
+  return response.json();
+}
+
+export async function syncContextView(view) {
+  const response = await fetch(apiUrl("/api/context/view"), {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify(view)
+  });
+  if (!response.ok) throw new Error("Failed to sync context view");
+  return response.json();
+}
+
+export async function syncContextDocument(document) {
+  const response = await fetch(apiUrl("/api/context/document"), {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify(document)
+  });
+  if (!response.ok) throw new Error("Failed to sync context document");
   return response.json();
 }
 

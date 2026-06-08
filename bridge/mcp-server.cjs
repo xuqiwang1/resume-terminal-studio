@@ -8,15 +8,11 @@ const { createNativeMcpRuntime } = require("./mcp-runtime.cjs");
 const {
   activeResumePath,
   activityLogPath,
-  commitPatch,
   loadResume,
   proposeEdit,
   readActivityEvents,
   readActivityState,
   readPendingPatch,
-  rejectPatch,
-  setContact,
-  setTitle,
   terminalAgentPath,
   materialsDir,
   extractedDir,
@@ -24,11 +20,64 @@ const {
 } = require("./bin/resume-engine.cjs");
 
 const selectionStatePath = path.join(workspaceDir, "selection-state.json");
+const contextStatePath = path.join(workspaceDir, "context-state.json");
+const defaultResume = {
+  name: "Your Name",
+  title: "Target Role | Availability | Internship Duration",
+  contact: "Phone | Email | Location",
+  summary: "",
+  experience: [
+    {
+      company: "Company Name",
+      role: "Role Title",
+      date: "YYYY.MM-YYYY.MM",
+      details:
+        "Describe your work with clear outcomes.\nUse one bullet or paragraph per line so AI edits can target individual lines."
+    }
+  ],
+  projects: [
+    {
+      name: "Project Name",
+      role: "Role Title",
+      date: "YYYY.MM-YYYY.MM",
+      details: "Describe the project goal, your contribution, and measurable result."
+    }
+  ],
+  avatar: null,
+  education: [
+    {
+      school: "School Name",
+      degree: "",
+      major: "Major",
+      date: "YYYY.MM-YYYY.MM",
+      tag: ""
+    }
+  ],
+  skills: [
+    {
+      category: "Tools",
+      content: "Figma, Excel, SQL"
+    }
+  ]
+};
+
+function ensureMcpWorkspace() {
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.mkdirSync(materialsDir, { recursive: true });
+  fs.mkdirSync(extractedDir, { recursive: true });
+  if (!fs.existsSync(activeResumePath)) {
+    fs.writeFileSync(activeResumePath, JSON.stringify(defaultResume, null, 2), "utf8");
+  }
+}
+
 const {
   activeSession,
   core,
   sessionManager
-} = initializeRuntime({ workspaceDir, resume: loadResume() });
+} = (() => {
+  ensureMcpWorkspace();
+  return initializeRuntime({ workspaceDir, resume: loadResume() });
+})();
 const runtime = createNativeMcpRuntime({ sessionManager, core });
 
 function loadSelectionState() {
@@ -40,12 +89,56 @@ function loadSelectionState() {
   }
 }
 
+function readContextState() {
+  try {
+    const raw = fs.readFileSync(contextStatePath, "utf8");
+    const context = raw.trim() ? JSON.parse(raw) : {};
+    if (context?.selection && !context.selection.fieldId) {
+      context.selection = {
+        ...context.selection,
+        index: null,
+        field: null,
+        sectionLabel: context.selection.sectionId ? context.selection.sectionLabel || "" : "",
+        fieldLabel: "",
+        textPreview: ""
+      };
+    }
+    return context;
+  } catch {
+    return {};
+  }
+}
+
+function buildContextPayload() {
+  core.setSelection(loadSelectionState());
+  return {
+    context: readContextState(),
+    resume: runtime.callTool("get_current_resume", {}),
+    pending: readPendingPatch(),
+    workspaceDir,
+    activeResumePath,
+    materialsDir,
+    extractedDir,
+    instruction:
+      "Use context.selection to target the user's current field. Use get_materials for source evidence. Submit edits only through propose_edit. Do not edit files directly. The user confirms or rejects pending patches in the Resume Studio app."
+  };
+}
+
 const serverInfo = {
   name: "resume-terminal-studio",
-  version: "0.1.0"
+  version: "0.2.0"
 };
 
 const toolDefinitions = [
+  {
+    name: "get_context",
+    description: "Read the current UI context: opened document, visible page, selected section/field, active resume, workspace paths, and pending patch. Call this before get_materials and propose_edit.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {}
+    }
+  },
   {
     name: "get_resume",
     description: "Read the active resume JSON and local workspace context.",
@@ -56,8 +149,24 @@ const toolDefinitions = [
     }
   },
   {
+    name: "get_materials",
+    description: "Read extracted local source materials in one call, so the agent can start writing without manually discovering workspace/materials/.extracted files. Run `resume-agent ingest` first if this returns no files.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        maxChars: {
+          type: "integer",
+          minimum: 1000,
+          maximum: 200000,
+          description: "Maximum total characters returned across extracted material files. Defaults to 60000."
+        }
+      }
+    }
+  },
+  {
     name: "propose_edit",
-    description: "Propose a finished edit to one resume section. YOU (the agent) must first read the user's materials (workspace/materials/.extracted/*.md) and project files using your own file-reading ability, then WRITE the final polished text yourself and submit it here. This does NOT change the resume directly: it stages a pending patch the user must confirm in the workbench. Returns the diff and a pendingId. Use confirm_patch to apply or reject_patch to discard.\n\nSections:\n- summary: plain text personal summary (no index/field).\n- experience / projects: arrays; use index + (default field 'details').\n- education: array of {school,degree,major,date,tag}; use index + field (one of school/degree/major/date/tag).\n- skills: array of {category,content}; use index + field (one of category/content; default 'content').\nFor structured arrays, proposing with index 0 onto an EMPTY array appends a new item.",
+    description: "Propose a finished edit to one resume field. First call get_context and get_materials, then WRITE the final polished text yourself and submit it here. This does NOT change the resume directly: it stages a pending patch that only the user can accept or reject in the Resume Studio workbench.\n\nSections:\n- title / contact / summary: plain text, no index/field.\n- experience / projects: arrays; use index + field (default 'details').\n- education: array of {school,degree,major,date,tag}; use index + field (one of school/degree/major/date/tag).\n- skills: array of {category,content}; use index + field (one of category/content; default 'content').\nFor structured arrays, proposing with index 0 onto an EMPTY array appends a new item.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -65,8 +174,8 @@ const toolDefinitions = [
       properties: {
         sectionId: {
           type: "string",
-          enum: ["summary", "experience", "projects", "education", "skills"],
-          description: "Which section to edit. For title/contact use set_title/set_contact instead. avatar is set by the user in the workbench, not here."
+          enum: ["title", "contact", "summary", "experience", "projects", "education", "skills"],
+          description: "Which section to edit. avatar is set by the user in the workbench, not here."
         },
         index: {
           type: "integer",
@@ -90,58 +199,12 @@ const toolDefinitions = [
     }
   },
   {
-    name: "confirm_patch",
-    description: "Confirm and apply the currently pending patch to the active resume. Optionally pass the pendingId to guard against confirming a stale patch. Use this only after the user has approved the proposed change.",
-    inputSchema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        pendingId: { type: "string", description: "Optional id of the pending patch to confirm." }
-      }
-    }
-  },
-  {
-    name: "reject_patch",
-    description: "Discard the currently pending patch without changing the resume. Optionally pass the pendingId to guard against rejecting a stale patch.",
-    inputSchema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        pendingId: { type: "string", description: "Optional id of the pending patch to reject." }
-      }
-    }
-  },
-  {
     name: "get_pending_patch",
     description: "Read the currently pending (proposed but not yet confirmed) patch, if any.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
       properties: {}
-    }
-  },
-  {
-    name: "set_title",
-    description: "Replace the resume title directly.",
-    inputSchema: {
-      type: "object",
-      additionalProperties: false,
-      required: ["text"],
-      properties: {
-        text: { type: "string" }
-      }
-    }
-  },
-  {
-    name: "set_contact",
-    description: "Replace the resume contact line directly.",
-    inputSchema: {
-      type: "object",
-      additionalProperties: false,
-      required: ["text"],
-      properties: {
-        text: { type: "string" }
-      }
     }
   },
   {
@@ -184,6 +247,18 @@ const resourceDefinitions = [
     name: "Activity Log",
     description: "Recent structured activity events from the workspace.",
     mimeType: "application/json"
+  },
+  {
+    uri: "resume://context",
+    name: "Resume Studio Context",
+    description: "Current document, view, selection, resume, and pending patch context.",
+    mimeType: "application/json"
+  },
+  {
+    uri: "resume://materials",
+    name: "Extracted Materials",
+    description: "Extracted local source materials available to the agent.",
+    mimeType: "application/json"
   }
 ];
 
@@ -210,8 +285,58 @@ function textContent(value) {
   };
 }
 
+function readExtractedMaterials(maxChars = 60000) {
+  const limit = Math.min(Math.max(Number(maxChars) || 60000, 1000), 200000);
+  let remaining = limit;
+  let files = [];
+  try {
+    files = fs
+      .readdirSync(extractedDir)
+      .filter((name) => name.endsWith(".md") || name.endsWith(".txt"))
+      .sort((a, b) => {
+        if (a === "index.md") return -1;
+        if (b === "index.md") return 1;
+        return a.localeCompare(b);
+      });
+  } catch {
+    files = [];
+  }
+
+  const materials = [];
+  for (const fileName of files) {
+    if (remaining <= 0) break;
+    const fullPath = path.join(extractedDir, fileName);
+    if (path.dirname(fullPath) !== extractedDir) continue;
+    const raw = fs.readFileSync(fullPath, "utf8");
+    const text = raw.slice(0, remaining);
+    remaining -= text.length;
+    materials.push({
+      fileName,
+      fullPath,
+      truncated: raw.length > text.length,
+      text
+    });
+  }
+
+  return {
+    workspaceDir,
+    materialsDir,
+    extractedDir,
+    count: materials.length,
+    maxChars: limit,
+    truncated: remaining <= 0,
+    hint:
+      materials.length > 0
+        ? "Use these materials to write finished resume copy, then submit via propose_edit. Do not edit active-resume.json directly. The user must accept the pending patch in the app."
+        : "No extracted materials found. Ask the user to place files in workspace/materials and run `resume-agent ingest`.",
+    materials
+  };
+}
+
 function callTool(name, args = {}) {
   switch (name) {
+    case "get_context":
+      return textContent(buildContextPayload());
     case "get_resume":
       core.setSelection(loadSelectionState());
       return textContent({
@@ -222,10 +347,12 @@ function callTool(name, args = {}) {
         materialsDir,
         extractedDir,
         materialsHint:
-          "Read your source material from the extractedDir (workspace/materials/.extracted/*.md). Run `resume-agent ingest` first if it is empty. Do NOT edit active-resume.json directly — submit edits via propose_edit.",
+          "Read your source material from the extractedDir (workspace/materials/.extracted/*.md). Run `resume-agent ingest` first if it is empty. Do NOT edit active-resume.json directly — submit edits via propose_edit and wait for the user to accept them in the app.",
         resume: runtime.callTool("get_current_resume", {}),
         userSelection: loadSelectionState()
       });
+    case "get_materials":
+      return textContent(readExtractedMaterials(args.maxChars));
     case "propose_edit": {
       const pending = runtime.callTool("propose_section_edit", {
         sessionId: activeSession.sessionId,
@@ -243,22 +370,7 @@ function callTool(name, args = {}) {
         field: pending.field,
         diff: { before: pending.before, after: pending.after },
         message:
-          "已生成待确认的改动草稿，尚未写入简历。请等待用户在工作台点击「接受」后再调用 confirm_patch，或调用 reject_patch 放弃。"
-      });
-    }
-    case "confirm_patch": {
-      const result = commitPatch(args.pendingId);
-      return textContent({
-        status: "committed",
-        patch: result.patch,
-        resume: result.resume
-      });
-    }
-    case "reject_patch": {
-      const result = rejectPatch(args.pendingId);
-      return textContent({
-        status: result.rejected ? "rejected" : "no_pending_patch",
-        pending: result.pending || null
+          "已生成待确认的改动草稿，尚未写入简历。请等待用户在 Resume Studio 工作台点击「接受」或「拒绝」。"
       });
     }
     case "get_pending_patch": {
@@ -267,14 +379,6 @@ function callTool(name, args = {}) {
         pending,
         hasPending: !!pending
       });
-    }
-    case "set_title": {
-      const result = setTitle(args.text);
-      return textContent(result);
-    }
-    case "set_contact": {
-      const result = setContact(args.text);
-      return textContent(result);
     }
     case "get_activity":
       return textContent({
@@ -285,8 +389,9 @@ function callTool(name, args = {}) {
     case "get_selection":
       core.setSelection(loadSelectionState());
       return textContent({
-        selection: runtime.callTool("get_selection", {}),
-        hint: "fieldId format: 'sectionId.index.field' (e.g. 'experience.0.details', 'summary.text'). sectionId is the broad section the user is focused on."
+        selection: readContextState().selection || runtime.callTool("get_selection", {}),
+        context: readContextState(),
+        hint: "Prefer get_context for document + view + selection."
       });
     default:
       throw new Error(`Unknown tool: ${name}`);
@@ -379,6 +484,36 @@ function handleMessage(message) {
               uri,
               mimeType: "application/json",
               text: JSON.stringify(readActivityEvents(50), null, 2)
+            }
+          ]
+        }
+      );
+    }
+
+    if (uri === "resume://context") {
+      return success(
+        id,
+        {
+          contents: [
+            {
+              uri,
+              mimeType: "application/json",
+              text: JSON.stringify(buildContextPayload(), null, 2)
+            }
+          ]
+        }
+      );
+    }
+
+    if (uri === "resume://materials") {
+      return success(
+        id,
+        {
+          contents: [
+            {
+              uri,
+              mimeType: "application/json",
+              text: JSON.stringify(readExtractedMaterials(60000), null, 2)
             }
           ]
         }

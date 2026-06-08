@@ -261,11 +261,9 @@ function applyPatchToResume(resume, patch) {
 // before-value, and stores the proposal in the single pending slot.
 // It does NOT write active-resume.json.
 function proposeEdit({ sectionId, index = 0, field, content, bulletIndex }, sessionId = crypto.randomUUID()) {
-  const allowed = ["summary", "experience", "projects", "education", "skills"];
+  const allowed = ["title", "contact", "summary", "experience", "projects", "education", "skills"];
   if (!allowed.includes(sectionId)) {
-    throw new Error(
-      `proposeEdit only supports ${allowed.join(", ")} (title/contact use set_title/set_contact).`
-    );
+    throw new Error(`proposeEdit only supports ${allowed.join(", ")}.`);
   }
   if (typeof content !== "string" || !content.trim()) {
     throw new Error("proposeEdit requires non-empty content (the finished text written by the agent).");
@@ -277,8 +275,8 @@ function proposeEdit({ sectionId, index = 0, field, content, bulletIndex }, sess
   let append = false;
   let resolvedBulletIndex;
 
-  if (sectionId === "summary") {
-    before = resume.summary;
+  if (sectionId === "title" || sectionId === "contact" || sectionId === "summary") {
+    before = resume[sectionId] || "";
   } else {
     // Resolve and validate the target sub-field for this section.
     resolvedField = field || DEFAULT_FIELD[sectionId];
@@ -320,7 +318,7 @@ function proposeEdit({ sectionId, index = 0, field, content, bulletIndex }, sess
     id: crypto.randomUUID(),
     sessionId,
     sectionId,
-    index: sectionId === "summary" ? undefined : index,
+    index: ["title", "contact", "summary"].includes(sectionId) ? undefined : index,
     field: resolvedField,
     bulletIndex: resolvedBulletIndex,
     append: append || undefined,
@@ -339,7 +337,18 @@ function proposeEdit({ sectionId, index = 0, field, content, bulletIndex }, sess
     after: content,
     at: new Date().toISOString()
   });
-  return { pending, patch: { sectionId, index: pending.index, field: resolvedField, bulletIndex: resolvedBulletIndex, append: pending.append, before, after: content } };
+  return {
+    pending,
+    patch: {
+      sectionId,
+      index: pending.index,
+      field: resolvedField,
+      bulletIndex: resolvedBulletIndex,
+      append: pending.append,
+      before,
+      after: content
+    }
+  };
 }
 
 // Step 2a: user confirms. Apply the pending patch to the active resume,

@@ -92,14 +92,20 @@ try {
 }
 check("proposeEdit throws on out-of-range index", threw);
 
-// 4c. unsupported section is rejected
-let threw2 = false;
-try {
-  engine.proposeEdit({ sectionId: "title", content: "x" });
-} catch {
-  threw2 = true;
-}
-check("proposeEdit rejects title (use set_title)", threw2);
+// 4c. title/contact must also be staged, never written directly by an agent.
+const beforeTitle = JSON.stringify(diskResume());
+const pt = engine.proposeEdit({ sectionId: "title", content: "AI 产品经理 | 一周内到岗" });
+check("title propose is staged as pending", pt.pending.sectionId === "title");
+check("title propose does NOT write disk", JSON.stringify(diskResume()) === beforeTitle);
+engine.commitPatch(pt.pending.id);
+check("title commit writes only after confirmation", diskResume().title === "AI 产品经理 | 一周内到岗");
+
+const beforeContact = JSON.stringify(diskResume());
+const pc = engine.proposeEdit({ sectionId: "contact", content: "Phone | Email | Location" });
+check("contact propose is staged as pending", pc.pending.sectionId === "contact");
+check("contact propose does NOT write disk", JSON.stringify(diskResume()) === beforeContact);
+engine.rejectPatch(pc.pending.id);
+check("contact reject leaves resume unchanged", JSON.stringify(diskResume()) === beforeContact);
 
 // ─── Structured sections: education / skills ───
 
@@ -196,19 +202,48 @@ try {
 }
 check("CLI ask is removed (errors out)", askFailed);
 
-// confirm/reject still work against an engine-staged patch
+// confirm/reject must not be available to agents through Bash.
 const beforeCli = JSON.stringify(diskResume());
-engine.proposeEdit({ sectionId: "summary", content: "CLI 确认用的新总结。" });
+const cliPending = engine.proposeEdit({ sectionId: "summary", content: "CLI 不应确认的新总结。" });
 check("CLI: staged patch does not modify resume", JSON.stringify(diskResume()) === beforeCli);
-runAgent("confirm");
-check("CLI confirm writes the resume", diskResume().summary === "CLI 确认用的新总结。");
-check("CLI confirm clears the pending slot", !engine.readPendingPatch());
+let cliConfirmFailed = false;
+try {
+  runAgent("confirm");
+} catch {
+  cliConfirmFailed = true;
+}
+check("CLI confirm is removed (cannot bypass app approval)", cliConfirmFailed);
+check("CLI confirm does not write the resume", JSON.stringify(diskResume()) === beforeCli);
+check("CLI confirm leaves pending patch for the app", engine.readPendingPatch()?.id === cliPending.pending.id);
+engine.rejectPatch(cliPending.pending.id);
 
-engine.proposeEdit({ sectionId: "summary", content: "会被拒绝的总结。" });
-const beforeRej = JSON.stringify(diskResume());
-runAgent("reject");
-check("CLI reject leaves resume unchanged", JSON.stringify(diskResume()) === beforeRej);
-check("CLI reject clears the pending slot", !engine.readPendingPatch());
+const rejectPending = engine.proposeEdit({ sectionId: "summary", content: "CLI 不应拒绝的新总结。" });
+const beforeCliReject = JSON.stringify(diskResume());
+let cliRejectFailed = false;
+try {
+  runAgent("reject");
+} catch {
+  cliRejectFailed = true;
+}
+check("CLI reject is removed (cannot bypass app approval)", cliRejectFailed);
+check("CLI reject leaves resume unchanged", JSON.stringify(diskResume()) === beforeCliReject);
+check("CLI reject leaves pending patch for the app", engine.readPendingPatch()?.id === rejectPending.pending.id);
+engine.rejectPatch(rejectPending.pending.id);
+
+// title/contact CLI commands stage pending patches instead of writing directly.
+const beforeCliTitle = JSON.stringify(diskResume());
+runAgent("title", "CLI 暂存标题");
+check("CLI title does not write directly", JSON.stringify(diskResume()) === beforeCliTitle);
+const cliTitlePatch = engine.readPendingPatch();
+check("CLI title creates a pending title patch", cliTitlePatch?.sectionId === "title");
+if (cliTitlePatch) engine.rejectPatch(cliTitlePatch.id);
+
+const beforeCliContact = JSON.stringify(diskResume());
+runAgent("contact", "CLI 暂存联系方式");
+check("CLI contact does not write directly", JSON.stringify(diskResume()) === beforeCliContact);
+const cliContactPatch = engine.readPendingPatch();
+check("CLI contact creates a pending contact patch", cliContactPatch?.sectionId === "contact");
+if (cliContactPatch) engine.rejectPatch(cliContactPatch.id);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 

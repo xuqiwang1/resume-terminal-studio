@@ -30,14 +30,13 @@
 
 **问题**：AI 改写简历最大的风险不是"改得不好"，而是"在用户没察觉时就改了"。一旦 AI 能直接覆盖简历内容，用户对这份简历的掌控感和信任就没了。
 
-**判断**：风险住在"AI 的生成"里，不住在"确定性写入"里。所以闸门只拦前者。
+**判断**：风险不只住在"AI 的生成"里，也住在"agent 能否绕过用户确认"里。所以所有 agent 写入都必须进待确认闸门；只有用户在 APP 里的手动操作可以直接生效。
 
 **规则**：
 
 | 操作类型 | 例子 | 是否需要确认 |
 |---|---|---|
-| AI 生成内容 | `propose_edit` 改写正文（summary/experience/projects/education/skills） | ✅ 先进待确认暂存，人点「接受」才落库 |
-| 确定性结构化写入 | `set_title` / `set_contact` | ❌ 直接生效（无模型不确定性） |
+| Agent 写入 | `propose_edit` 改写 title/contact/summary/experience/projects/education/skills | ✅ 先进待确认暂存，人点「接受」才落库 |
 | 用户手动编辑 | 在预览里自己打字 | ❌ 直接生效（用户即作者） |
 
 **谁来"写文案"**：写作的智能**不在本项目里**，在终端的 agent（Codex/Claude）。agent 先读素材、自己写好成品文案，再通过 `propose_edit({sectionId, index, field, content})` 提交。engine 收到 content **原样暂存，不做任何改写**。
@@ -48,6 +47,8 @@
 
 | sectionId | 类型 | 可改子字段（field） | 默认 field |
 |---|---|---|---|
+| `title` | 纯文本（求职意向） | 无（无 index/field） | — |
+| `contact` | 纯文本（联系方式） | 无（无 index/field） | — |
 | `summary` | 纯文本（可选，空则不渲染） | 无（无 index/field） | — |
 | `education` | 数组 `{school,degree,major,date,tag}` | `school` / `degree` / `major` / `date` / `tag` | `school` |
 | `skills` | 数组 `{category,content}` | `category` / `content` | `content` |
@@ -66,7 +67,7 @@
 - `commitPatch`：用户接受后**唯一的写入口**
 - `rejectPatch`：放弃，简历零改动
 
-**关键性质**：AI 生成内容只有**唯一入口** `propose_edit`（MCP）。原生终端的 `resume-agent` 已移除 `ask`（旧的套模板假改写），只保留 `confirm`/`reject`。并且在工作区 `CLAUDE.md` 里**明令禁止 agent 直接修改 `active-resume.json`**——即使它有文件写入能力。新提议覆盖旧提议（单槽语义），保证待确认状态永远唯一、可解释。
+**关键性质**：agent 写入只有**唯一入口** `propose_edit`（MCP）。原生终端的 `resume-agent` 已移除 `ask`，并禁用 `confirm`/`reject`，避免 agent 通过 Bash 替用户确认。工作区 `CLAUDE.md` / `AGENTS.md` 也会明令禁止 agent 直接修改 `active-resume.json`、重启 APP 或改打包文件。新提议覆盖旧提议（单槽语义），保证待确认状态永远唯一、可解释。
 
 ## 素材摄入：读放开，但先抽成干净文本
 

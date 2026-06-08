@@ -4,12 +4,9 @@ const {
   activeResumePath,
   endCommandSession,
   loadResume,
-  setContact,
-  setTitle,
+  proposeEdit,
   startCommandSession
 } = require("./resume-engine.cjs");
-const { initializeRuntime } = require("../core/runtime.cjs");
-const { workspaceDir } = require("./resume-engine.cjs");
 
 const [, , command = "help", ...args] = process.argv;
 const rawCommand = `resume-agent ${process.argv.slice(2).join(" ")}`.trim();
@@ -27,7 +24,6 @@ function writeStdout(text) {
 async function run() {
   const sessionId = startCommandSession(rawCommand, { command, args });
   try {
-    const runtime = initializeRuntime({ workspaceDir, resume: loadResume() });
     switch (command) {
       case "show": {
         writeStdout(JSON.stringify(loadResume(), null, 2));
@@ -36,15 +32,15 @@ async function run() {
       case "title": {
         const value = args.join(" ").trim();
         ensureValue(value, "Usage: resume-agent title 新的职位标题");
-        setTitle(value, sessionId);
-        writeStdout("Updated title");
+        const { pending } = proposeEdit({ sectionId: "title", content: value }, sessionId);
+        writeStdout(`Staged title patch ${pending.id}. Accept or reject it in the Resume Studio app.`);
         break;
       }
       case "contact": {
         const value = args.join(" ").trim();
         ensureValue(value, "Usage: resume-agent contact 新的联系方式");
-        setContact(value, sessionId);
-        writeStdout("Updated contact");
+        const { pending } = proposeEdit({ sectionId: "contact", content: value }, sessionId);
+        writeStdout(`Staged contact patch ${pending.id}. Accept or reject it in the Resume Studio app.`);
         break;
       }
       case "summary":
@@ -66,24 +62,10 @@ async function run() {
         break;
       }
       case "confirm": {
-        const pending = runtime.core.getPendingPatch();
-        ensureValue(pending, "No pending change to confirm.");
-        runtime.core.confirmPendingPatch({
-          sessionId: pending.sessionId,
-          pendingId: pending.id
-        });
-        writeStdout(`Confirmed -> ${pending.sectionId} written to resume.`);
-        break;
+        throw new Error("resume-agent confirm 已禁用。请在 Resume Studio 工作台点击「接受」，避免 agent 通过 Bash 绕过用户审核。");
       }
       case "reject": {
-        const pending = runtime.core.getPendingPatch();
-        ensureValue(pending, "No pending change to reject.");
-        runtime.core.rejectPendingPatch({
-          sessionId: pending.sessionId,
-          pendingId: pending.id
-        });
-        writeStdout("Rejected. Resume unchanged.");
-        break;
+        throw new Error("resume-agent reject 已禁用。请在 Resume Studio 工作台点击「拒绝」，避免 agent 通过 Bash 绕过用户审核。");
       }
       case "export-html":
       case "export-pdf": {
@@ -96,12 +78,11 @@ async function run() {
         writeStdout(`resume-agent commands:
   show
   ingest                                 # 扫描 materials/ 抽取 PDF/Excel/文本给 AI 阅读
-  title 新标题
-  contact 新联系方式
-  confirm                                # 接受待确认改动并写入
-  reject                                 # 放弃待确认改动
+  title 新标题                            # 暂存标题改动，需在 APP 接受
+  contact 新联系方式                      # 暂存联系方式改动，需在 APP 接受
 
 注：正文改写由你的终端 AI agent 读取 materials/.extracted/ 后，通过 MCP 工具 propose_edit 提交。
+注：接受/拒绝只能在工作台界面操作，避免 agent 绕过用户确认。
 注：PDF 导出请在工作台界面中操作（预览即导出，所见即所得）。
 
 active resume: ${activeResumePath}`);

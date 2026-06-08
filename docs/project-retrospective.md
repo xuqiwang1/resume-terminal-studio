@@ -36,7 +36,7 @@ AI resume builder 常见卖点包括 ATS、模板、JD tailor、AI rewrite、PDF
 
 ### 1. AI 提议，人确认
 
-AI 生成内容的不确定性是核心风险。项目将正文类改写统一收敛到 `propose_edit`：agent 自己写好成品文案，提交到 pending patch，前端展示 diff，用户接受后才落盘。
+AI 生成内容的不确定性和 agent 绕过用户确认都是核心风险。项目将 title/contact/正文改写统一收敛到 `propose_edit`：agent 自己写好成品文案，提交到 pending patch，前端展示 diff，用户接受后才落盘。
 
 确定性字段如 title/contact 可以直接写入，因为风险不在模型生成，而在是否偷偷覆盖正文资产。
 
@@ -86,8 +86,8 @@ AI 生成内容的不确定性是核心风险。项目将正文类改写统一�
 ### MCP Server
 
 - `bridge/mcp-server.cjs` 通过 stdio 暴露工具给 Codex/Claude/agy。
-- 核心工具包括 `get_resume`、`propose_edit`、`confirm_patch`、`reject_patch`、`get_pending_patch`、`get_activity`、`get_selection`。
-- agent 不应直接写 `active-resume.json`，必须走 MCP 工具提交改动。
+- 核心工具包括 `get_context`、`get_resume`、`get_materials`、`propose_edit`、`get_pending_patch`、`get_activity`、`get_selection`。
+- agent 不应直接写 `active-resume.json`，也不能确认/拒绝 pending patch；必须走 MCP 工具提交待确认改动，由用户在 APP 里接受或拒绝。
 
 ### Storage
 

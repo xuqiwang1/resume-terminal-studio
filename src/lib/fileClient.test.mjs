@@ -11,7 +11,7 @@ function check(name, cond) {
 }
 
 const previousWindow = globalThis.window;
-const { apiUrl, authHeaders, eventSourceUrl } = await import("./fileClient.js");
+const { apiUrl, authHeaders, eventSourceUrl, contextApiUrlForTest } = await import("./fileClient.js");
 
 globalThis.window = {};
 check("browser mode keeps relative api URL", apiUrl("/api/health") === "/api/health");
@@ -35,6 +35,10 @@ check(
   "desktop event source carries token query",
   eventSourceUrl("/api/resume/stream") ===
     "http://127.0.0.1:49152/api/resume/stream?token=secret+token"
+);
+check(
+  "desktop context API uses bridge base URL",
+  contextApiUrlForTest("/api/context") === "http://127.0.0.1:49152/api/context"
 );
 
 globalThis.window = previousWindow;

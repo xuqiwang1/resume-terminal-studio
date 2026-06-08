@@ -10,8 +10,20 @@ let bridgeRuntime = null;
 let activeSession = null;
 
 function getWorkspacePath() {
+  if (process.env.WORKSPACE_DIR) return path.resolve(process.env.WORKSPACE_DIR);
   if (isDev) return path.join(__dirname, "..", "workspace");
   return path.join(app.getPath("documents"), "ResumeStudio");
+}
+
+function copyBundledTemplate(targetPath) {
+  const src = isDev
+    ? path.join(__dirname, "..", "workspace-template", "active-resume.json")
+    : path.join(process.resourcesPath, "workspace", "active-resume.json");
+  if (src && fs.existsSync(src)) {
+    fs.copyFileSync(src, targetPath);
+    return true;
+  }
+  return false;
 }
 
 function ensureWorkspace() {
@@ -22,13 +34,38 @@ function ensureWorkspace() {
   fs.writeFileSync(path.join(ws, ".electron-path"), process.execPath, "utf8");
 
   const resume = path.join(ws, "active-resume.json");
+  const workspaceMarker = path.join(ws, ".resume-studio-workspace.json");
+
+  if (!isDev && fs.existsSync(resume) && !fs.existsSync(workspaceMarker)) {
+    const historyDir = path.join(ws, "history");
+    fs.mkdirSync(historyDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    fs.renameSync(resume, path.join(historyDir, `${stamp}-legacy-active-resume.json`));
+  }
+
   if (!fs.existsSync(resume)) {
-    const src = isDev
-      ? path.join(__dirname, "..", "workspace", "active-resume.json")
-      : path.join(process.resourcesPath, "workspace", "active-resume.json");
-    if (src && fs.existsSync(src)) {
-      fs.copyFileSync(src, resume);
+    if (!copyBundledTemplate(resume)) {
+      const fallback = {
+        name: "Your Name",
+        title: "Target Role | Availability | Internship Duration",
+        contact: "Phone | Email | Location",
+        summary: "",
+        experience: [],
+        projects: [],
+        avatar: null,
+        education: [],
+        skills: []
+      };
+      fs.writeFileSync(resume, JSON.stringify(fallback, null, 2), "utf8");
     }
+  }
+
+  if (!fs.existsSync(workspaceMarker)) {
+    fs.writeFileSync(
+      workspaceMarker,
+      JSON.stringify({ version: 1, createdAt: new Date().toISOString() }, null, 2),
+      "utf8"
+    );
   }
 }
 

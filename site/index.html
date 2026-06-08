@@ -1,157 +1,209 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Resume Studio is a local-first resume workbench for AI-assisted editing, MCP agents, reviewed patches, and PDF export."
+      content="Resume Studio is a local-first Electron resume workbench with MCP agents, material ingestion, reviewed patches, history, and PDF export."
     />
-    <title>Resume Studio | Local-first resume workbench</title>
+    <title>Resume Studio | Local-first AI resume workbench</title>
+    <script>
+      (() => {
+        const theme = localStorage.getItem("resume-site-theme") || "light";
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
+
     <header class="site-nav">
       <a class="brand" href="#top" aria-label="Resume Studio home">
         <span class="brand-mark">RS</span>
         <span>Resume Studio</span>
       </a>
       <nav class="nav-links" aria-label="Main navigation">
+        <a href="#system">System</a>
         <a href="#workflow">Workflow</a>
-        <a href="#privacy">Privacy</a>
+        <a href="#build">Build</a>
         <a href="#agents">Agents</a>
-        <a href="#open-source">Open source</a>
       </nav>
-      <a class="nav-cta" href="#open-source" aria-label="Open source details">
-        Open source <span>↓</span>
-      </a>
+      <div class="nav-actions">
+        <button class="theme-toggle" type="button" aria-label="Switch color theme" aria-pressed="false">
+          <span class="theme-toggle-track" aria-hidden="true">
+            <span class="theme-toggle-thumb"></span>
+          </span>
+          <span class="theme-toggle-label">Light</span>
+        </button>
+        <a class="nav-cta" href="#download" aria-label="Setup Resume Studio">
+          Setup <span>↓</span>
+        </a>
+      </div>
     </header>
 
     <main id="top">
-      <section class="hero section-grid">
+      <section class="hero">
         <div class="hero-copy reveal">
           <p class="eyebrow">Local-first resume workbench</p>
           <h1>
-            <span>AI can draft</span>
-            <span>your resume.</span>
-            <span>It should not</span>
-            <span>overwrite it.</span>
+            <span>AI agents can write.</span>
+            <span>You approve the patch.</span>
           </h1>
           <p class="lede">
-            Resume Studio connects a desktop A4 editor, local materials, MCP-capable terminal agents, reviewed diffs,
-            version history, and PDF export into one controlled loop.
+            Resume Studio is an Electron + React desktop app that turns terminal AI agents into controlled resume
+            collaborators: they read local materials, submit reviewed edits through MCP, and only write after you accept.
           </p>
           <div class="hero-actions" aria-label="Primary actions">
-            <a class="button primary" href="#download">Download <span>↓</span></a>
-            <a class="button secondary" href="#workflow">See the patch flow</a>
+            <a class="button primary" href="#workflow">See the flow <span>↓</span></a>
+            <a class="button secondary" href="#build">What was built</a>
           </div>
         </div>
 
-        <div class="mock-shell hero-product reveal delay-1" aria-label="Product preview">
-          <div class="mock-window">
-            <div class="window-bar">
-              <span></span><span></span><span></span>
-              <strong>MCP Ready</strong>
-            </div>
-            <div class="workbench">
-              <aside class="tool-panel">
-                <p>Template</p>
-                <b>Professional</b>
-                <div class="slider"></div>
-                <div class="slider small"></div>
-                <div class="swatches">
-                  <span></span><span></span><span></span>
-                </div>
-              </aside>
-              <article class="paper-preview">
-                <small>Resume preview</small>
-                <h2>AI Product Manager</h2>
-                <div class="rule"></div>
-                <p>Agent workflow, product judgment, and transparent execution.</p>
-                <p>Local bridge keeps edits visible before they become resume content.</p>
-                <div class="patch-card">
-                  <b>Pending patch</b>
-                  <span>before → reviewed after</span>
-                </div>
-              </article>
-              <section class="terminal-card">
-                <span>$ codex</span>
-                <code>get_resume</code>
-                <code>read materials</code>
-                <code>propose_edit</code>
-              </section>
-            </div>
+        <figure class="demo-reel reveal delay-1" aria-label="Resume Studio product demo video">
+          <div class="demo-reel-shell">
+            <video
+              class="demo-video"
+              autoplay
+              muted
+              loop
+              playsinline
+              preload="metadata"
+              poster="./assets/demo-patch-flow-poster.png"
+            >
+              <source src="./assets/demo-patch-flow.mp4" type="video/mp4" />
+              Resume Studio demo: terminal agent proposes an edit, the desktop app reviews the diff, then saves history
+              and exports PDF.
+            </video>
           </div>
-        </div>
+          <figcaption>
+            Clean product reel: terminal MCP commands, Resume Studio A4 preview, pending diff review, history, and PDF export.
+          </figcaption>
+        </figure>
       </section>
 
-      <section class="problem reveal">
-        <p class="eyebrow">The problem</p>
-        <h2>Most AI resume tools optimize for instant generation. Real resumes need auditability.</h2>
+      <section class="thesis reveal">
+        <p class="eyebrow">Why this exists</p>
+        <h2>普通 AI 简历工具追求“一键生成”。Resume Studio 解决的是“AI 参与写作时，谁拥有最后写入权”。</h2>
         <p>
-          Your resume contains private facts, sensitive timelines, and high-stakes claims. Resume Studio treats AI as a
-          collaborator that proposes changes, not a silent writer with direct access to your final document.
+          简历包含真实经历、敏感材料和高风险表述。这个项目把 AI 能力放进一个可见、可审、可回退的本地工作台，而不是让模型在黑箱里直接覆盖个人简历。
         </p>
       </section>
 
-      <section class="product-grid" aria-label="Product capabilities">
-        <article class="feature-card tall reveal">
-          <span>01</span>
-          <h3>Desktop workbench</h3>
-          <p>A real Electron app for editing, previewing, styling, saving, restoring, and exporting a resume.</p>
-        </article>
-        <article class="feature-card reveal delay-1">
-          <span>02</span>
-          <h3>Local materials</h3>
-          <p>Extract notes, PDFs, and spreadsheets into clean local markdown for agents to read.</p>
-        </article>
-        <article class="feature-card reveal delay-2">
-          <span>03</span>
-          <h3>MCP agent bridge</h3>
-          <p>Codex, Claude Code, and Antigravity CLI can inspect state and submit edits through standard tools.</p>
-        </article>
-        <article class="feature-card wide reveal delay-1">
-          <span>04</span>
-          <h3>Human-reviewed patch flow</h3>
-          <p>Every substantive rewrite enters a pending diff. Accept it, reject it, or keep iterating before it touches the resume.</p>
-        </article>
+      <section class="system-section" id="system">
+        <div class="section-copy reveal">
+          <p class="eyebrow">System, not a generator</p>
+          <h2>一个完整做出来的桌面端 AI 协作系统。</h2>
+        </div>
+        <div class="module-grid" aria-label="Built modules">
+          <article class="module-card big reveal">
+            <span>01</span>
+            <h3>Electron desktop app</h3>
+            <p>真实桌面入口，管理本地工作区、桥接运行时、A4 预览、样式面板、历史和 PDF 导出。</p>
+          </article>
+          <article class="module-card reveal delay-1">
+            <span>02</span>
+            <h3>React resume editor</h3>
+            <p>结构化简历数据、模板样式、字段选择、内联样式和打印视图分离。</p>
+          </article>
+          <article class="module-card reveal delay-2">
+            <span>03</span>
+            <h3>Local bridge</h3>
+            <p>本地 API 负责保存、打开、历史归档、运行状态、导出和安全工作区边界。</p>
+          </article>
+          <article class="module-card reveal delay-3">
+            <span>04</span>
+            <h3>MCP server</h3>
+            <p>让 Codex、Claude Code、Antigravity CLI 用标准工具读取简历并提交 patch。</p>
+          </article>
+          <article class="module-card reveal delay-4">
+            <span>05</span>
+            <h3>Material ingestion</h3>
+            <p>把 markdown、文本版 PDF、xlsx 表格抽成可读材料，agent 基于事实而不是空提示词写作。</p>
+          </article>
+        </div>
       </section>
 
-      <section class="workflow section-grid" id="workflow">
+      <section class="workflow" id="workflow">
         <div class="section-copy reveal">
-          <p class="eyebrow">Workflow</p>
-          <h2>Materials → agent reads → propose_edit → diff → accept or reject → export PDF.</h2>
+          <p class="eyebrow">Human-reviewed AI workflow</p>
+          <h2>从素材到 PDF，中间每一步都留在你的控制范围内。</h2>
         </div>
-        <ol class="flow-list">
-          <li class="reveal"><span>01</span><b>Drop materials into the local workspace.</b></li>
-          <li class="reveal delay-1"><span>02</span><b>Run ingest to create agent-readable markdown.</b></li>
-          <li class="reveal delay-2"><span>03</span><b>Ask a terminal agent to inspect context and draft changes.</b></li>
-          <li class="reveal delay-3"><span>04</span><b>Review the pending patch inside the desktop app.</b></li>
-          <li class="reveal delay-4"><span>05</span><b>Export a clean A4 PDF after approval.</b></li>
+        <ol class="flow-rail">
+          <li class="reveal">
+            <span>materials</span>
+            <b>真实材料进入本地 workspace。</b>
+            <p>实习证明、项目笔记、表格数据不需要上传到云端。</p>
+          </li>
+          <li class="reveal delay-1">
+            <span>ingest</span>
+            <b>抽取成 agent 可读 markdown。</b>
+            <p>PDF / xlsx / md 被整理成清晰文本，减少模型乱猜。</p>
+          </li>
+          <li class="reveal delay-2">
+            <span>MCP</span>
+            <b>终端 agent 读取简历和材料。</b>
+            <p>agent 在 Codex、Claude Code 或 agy 里工作，而不是被塞进网页表单。</p>
+          </li>
+          <li class="reveal delay-3">
+            <span>patch</span>
+            <b>propose_edit 只进入待确认槽。</b>
+            <p>AI 不能直接覆盖正文，APP 展示 diff 和预览变化。</p>
+          </li>
+          <li class="reveal delay-4">
+            <span>export</span>
+            <b>接受后写入，保留历史，再导出 PDF。</b>
+            <p>重塑简历前自动归档，结果可回退。</p>
+          </li>
         </ol>
       </section>
 
-      <section class="privacy" id="privacy">
-        <div class="mock-shell privacy-panel reveal">
-          <div class="privacy-inner">
-            <p class="eyebrow">Privacy boundary</p>
-            <h2>Resume data and source materials stay local by default.</h2>
-            <p>
-              Runtime workspace files, extracted materials, history snapshots, and personal resumes are intentionally
-              excluded from the public repository. The open-source project ships source code and non-personal templates.
-            </p>
+      <section class="comparison">
+        <div class="compare-card reveal">
+          <p class="eyebrow">Different from AI resume builders</p>
+          <div class="compare-grid">
+            <div>
+              <h2>不是一键生成器。</h2>
+              <p>一键生成工具把结果当成终点；Resume Studio 把协作过程当成产品。</p>
+            </div>
+            <ul>
+              <li><b>普通工具：</b>上传简历 → AI 改写 → 直接接受结果。</li>
+              <li><b>Resume Studio：</b>本地材料 → agent 提案 → diff 审核 → 人工确认 → PDF。</li>
+              <li><b>核心差异：</b>AI 可以大胆写，但写入权始终在用户手里。</li>
+            </ul>
           </div>
         </div>
       </section>
 
-      <section class="agents section-grid" id="agents">
+      <section class="build" id="build">
+        <div class="section-copy reveal">
+          <p class="eyebrow">Development highlights</p>
+          <h2>开发重点不是“页面好看”，而是把不确定的 AI 输出放进确定的工程边界。</h2>
+        </div>
+        <div class="build-grid">
+          <article class="build-card reveal">
+            <h3>Pending patch as trust primitive</h3>
+            <p>正文类改写走 `propose_edit`，先暂存，展示 diff，确认后才写入 active resume。</p>
+          </article>
+          <article class="build-card reveal delay-1">
+            <h3>Workspace privacy boundary</h3>
+            <p>真实简历、materials、history、运行日志默认在本机，并被 GitHub 上传边界排除。</p>
+          </article>
+          <article class="build-card reveal delay-2">
+            <h3>Desktop and web separated</h3>
+            <p>APP 只做工具本体；官网只做项目介绍，避免把 marketing 页面塞进工作台。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="agents" id="agents">
         <div class="section-copy reveal">
           <p class="eyebrow">Agent support</p>
-          <h2>Designed for terminal-native AI workflows.</h2>
+          <h2>支持现有终端 AI 工作流，而不是替代它们。</h2>
           <p>
-            Resume Studio does not hide the agent inside a web form. It exposes a local MCP server so existing developer
-            tools can read resume state, inspect materials, and submit reviewed changes.
+            Resume Studio 暴露本地 MCP server。agent 可以调用 `get_resume`、`propose_edit`、
+            `get_pending_patch`、`confirm_patch`、`reject_patch` 等工具。
           </p>
         </div>
         <div class="agent-stack reveal delay-1">
@@ -161,20 +213,9 @@
         </div>
       </section>
 
-      <section class="open-source" id="open-source">
-        <div class="section-copy reveal">
-          <p class="eyebrow">Open source</p>
-          <h2>Built as a local developer tool, documented as an open project.</h2>
-          <p>
-            The repository includes the React app, Electron runtime, bridge server, MCP tools, architecture notes,
-            security policy, contribution guide, and MIT license.
-          </p>
-        </div>
-      </section>
-
       <section class="cta" id="download">
-        <p class="eyebrow">Setup</p>
-        <h2>Run locally, connect your agent, review every write.</h2>
+        <p class="eyebrow">Open source setup</p>
+        <h2>Run the desktop app, connect an agent, and keep every write reviewable.</h2>
         <div class="command-card" aria-label="Install commands">
           <code>npm install</code>
           <code>npm run dev:desktop</code>
@@ -185,7 +226,27 @@
 
     <footer class="footer">
       <span>Resume Studio</span>
-      <span>Local-first. MCP-ready. Human-reviewed.</span>
+      <span>Electron · React · Local bridge · MCP · Reviewed patches</span>
     </footer>
+
+    <script>
+      (() => {
+        const root = document.documentElement;
+        const toggle = document.querySelector(".theme-toggle");
+        const label = document.querySelector(".theme-toggle-label");
+
+        const applyTheme = (theme) => {
+          root.dataset.theme = theme;
+          localStorage.setItem("resume-site-theme", theme);
+          toggle?.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+          if (label) label.textContent = theme === "dark" ? "Dark" : "Light";
+        };
+
+        applyTheme(root.dataset.theme === "dark" ? "dark" : "light");
+        toggle?.addEventListener("click", () => {
+          applyTheme(root.dataset.theme === "dark" ? "light" : "dark");
+        });
+      })();
+    </script>
   </body>
 </html>

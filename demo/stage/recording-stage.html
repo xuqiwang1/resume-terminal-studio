@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resume Studio Demo Stage</title>
+    <link rel="stylesheet" href="./recording-stage.css" />
+  </head>
+  <body data-phase="boot">
+    <main class="stage" aria-label="Resume Studio product demo stage">
+      <section class="terminal-window" aria-label="Codex terminal controlling Resume Studio">
+        <div class="window-head">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <strong>codex · resume-studio</strong>
+          <em>MCP connected</em>
+        </div>
+        <div class="terminal-body">
+          <p class="terminal-kicker">agent workspace</p>
+          <h1>Terminal agent proposes. Desktop app reviews.</h1>
+          <div class="terminal-lines">
+            <code data-step="0"><span>$</span> codex</code>
+            <code data-step="1"><span>tool</span> get_resume</code>
+            <code data-step="2"><span>tool</span> read materials/.extracted</code>
+            <code data-step="3"><span>tool</span> propose_edit projects[0]</code>
+            <code data-step="4"><span>app</span> pending patch created</code>
+            <code data-step="5"><span>user</span> accept reviewed change</code>
+            <code data-step="6"><span>app</span> archive + export_pdf</code>
+          </div>
+          <div class="agent-stack">
+            <article>
+              <small>facts read</small>
+              <strong>materials</strong>
+              <span>project notes · spreadsheet · JD</span>
+            </article>
+            <article>
+              <small>write blocked</small>
+              <strong>pending patch</strong>
+              <span>diff waits for human approval</span>
+            </article>
+            <article>
+              <small>output</small>
+              <strong>PDF export</strong>
+              <span>history saved before write</span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="app-window" aria-label="Resume Studio desktop app">
+        <div class="app-topbar">
+          <strong>Resume Studio</strong>
+          <div class="topbar-actions">
+            <span class="desktop-pill">Desktop</span>
+            <span class="mcp-pill"><i></i>MCP Ready</span>
+            <span>新建模板</span>
+            <span>历史</span>
+            <span>打开</span>
+            <span>保存</span>
+            <span class="primary-pill">导出 PDF</span>
+          </div>
+        </div>
+
+        <div class="workspace-grid">
+          <aside class="style-panel" aria-label="Style controls">
+            <p class="panel-kicker">style panel</p>
+            <div class="control-group">
+              <span>Template</span>
+              <button>Professional</button>
+              <button>Editorial</button>
+            </div>
+            <div class="control-group">
+              <span>Font</span>
+              <button>Noto Sans SC</button>
+              <button>Serif</button>
+            </div>
+            <div class="control-group">
+              <span>Color</span>
+              <div class="swatches">
+                <i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+            <div class="control-group sliders">
+              <span>Spacing</span>
+              <b></b>
+              <b></b>
+              <b></b>
+            </div>
+          </aside>
+
+          <section class="canvas-panel" aria-label="A4 resume preview">
+            <div class="canvas-toolbar">
+              <span>当前文件：demo-ai-product-manager.json</span>
+              <strong>Preview · A4</strong>
+            </div>
+            <article class="resume-page" aria-label="Resume preview">
+              <header class="resume-header">
+                <h2>AI 产品经理</h2>
+                <p>Shanghai · xuqiwang@example.com · Local-first AI workflow</p>
+              </header>
+              <div class="resume-rule"></div>
+              <section class="resume-section summary-section">
+                <h3>个人总结</h3>
+                <p>
+                  连接本地简历、材料抽取和终端 AI agent，构建可审阅、可回退的简历编辑流程。
+                </p>
+              </section>
+              <section class="resume-section project-section">
+                <h3>项目经历</h3>
+                <p><strong>Resume Studio</strong> · Electron + React + MCP</p>
+                <ul>
+                  <li class="before-line">使用 AI 辅助优化简历内容。</li>
+                  <li class="after-line">设计 propose_edit → diff → accept/reject 的写入边界，避免 AI 直接覆盖个人简历。</li>
+                  <li>实现本地 workspace、history archive、PDF export 和 MCP toolchain。</li>
+                </ul>
+              </section>
+              <section class="resume-section">
+                <h3>技能</h3>
+                <p>Product systems · MCP · Local bridge · React · Electron · PDF export</p>
+              </section>
+            </article>
+
+            <div class="pending-card" aria-label="Pending patch review">
+              <div class="pending-head">
+                <span>AI 待确认改动</span>
+                <em>项目经历</em>
+              </div>
+              <p class="instruction">指令：根据材料强化开发过程和信任边界。</p>
+              <p class="diff">
+                <del>使用 AI 辅助优化简历内容。</del>
+                <ins>设计 propose_edit → diff → accept/reject 的写入边界，避免 AI 直接覆盖个人简历。</ins>
+              </p>
+              <div class="pending-actions">
+                <button>拒绝</button>
+                <button>接受改动</button>
+              </div>
+            </div>
+
+            <div class="history-panel" aria-label="History archive panel">
+              <span>history archive</span>
+              <strong>Saved before write</strong>
+              <p>2026-06-08 · before-agent-patch.json</p>
+              <p>current · accepted-project-edit.json</p>
+            </div>
+
+            <div class="export-card" aria-label="PDF export status">
+              <span>PDF exported</span>
+              <strong>resume-ai-product-manager.pdf</strong>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <div class="caption-strip">
+        <span>Local materials</span>
+        <span>MCP agent</span>
+        <span>Pending patch</span>
+        <span>Human review</span>
+        <span>History + PDF</span>
+      </div>
+    </main>
+
+    <script src="./recording-stage.js"></script>
+  </body>
+</html>

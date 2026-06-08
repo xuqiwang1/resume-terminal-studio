@@ -99,17 +99,15 @@ Resume Studio 自带本地 MCP server：
 
 | 工具 | 作用 |
 |---|---|
+| `get_context` | 读取当前文档、页码、选中字段、简历和 pending patch |
 | `get_resume` | 读取当前简历和工作区路径 |
-| `propose_edit` | 提交一项待确认改动 |
-| `confirm_patch` | 接受待确认改动 |
-| `reject_patch` | 拒绝待确认改动 |
+| `get_materials` | 一次读取已抽取素材，避免 agent 自己慢慢找文件 |
+| `propose_edit` | 提交一项待确认改动，包含 title/contact/正文 |
 | `get_pending_patch` | 查看当前待确认项 |
-| `set_title` | 直接设置标题/求职意向 |
-| `set_contact` | 直接设置联系方式 |
 | `get_activity` | 读取最近活动 |
 | `get_selection` | 读取用户当前选中的字段 |
 
-正文类改写应走 `propose_edit`。agent 负责读取素材并写好最终文案，Resume Studio 只暂存改动并展示 diff，不替 agent 二次改写。
+所有 AI 写入都必须走 `propose_edit`。agent 负责读取素材并写好最终文案，Resume Studio 只暂存改动并展示 diff，不替 agent 二次改写；接受/拒绝只能在 APP 工作台里完成，MCP 和 `resume-agent` CLI 都不能替用户确认。
 
 ## 历史存档
 
@@ -159,12 +157,21 @@ WORKSPACE_DIR = "/Users/your-name/Documents/ResumeStudio"
 
 启动 `agy` 后运行 `/mcp`，确认 `resume-studio` 已加载。
 
+如果 `agy` 仍然显示旧工具（如 `confirm_patch`、`set_title`），关闭 `agy` 后删除缓存再启动：
+
+```bash
+rm -rf ~/.gemini/antigravity-cli/mcp/resume-studio
+agy
+```
+
+新版工具列表不应包含 `confirm_patch`、`reject_patch`、`set_title`、`set_contact`。
+
 ## 推荐工作流
 
 1. 打开 Resume Studio。
 2. 把素材放进工作区 `materials/`，运行 `npm run ingest`。
 3. 在终端启动 Codex、Claude Code 或 `agy`。
-4. 让 agent 先调用 `get_resume`，再读取 `materials/.extracted/`。
+4. 让 agent 先调用 `get_context`，再调用 `get_materials`。
 5. agent 写好文案后调用 `propose_edit`。
 6. 你在工作台确认或拒绝改动。
 

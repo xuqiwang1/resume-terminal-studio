@@ -14,8 +14,8 @@
   "projects": [
     {
       "name": "Project Name",
-      "role": "",
-      "date": "",
+      "role": "Role Title",
+      "date": "YYYY.MM-YYYY.MM",
       "details": "Describe the project goal, your contribution, and measurable result."
     }
   ],

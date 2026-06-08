@@ -11,5 +11,6 @@ await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
 await cp(join(siteDir, "index.html"), join(outDir, "index.html"));
 await cp(join(siteDir, "styles.css"), join(outDir, "styles.css"));
+await cp(join(siteDir, "assets"), join(outDir, "assets"), { recursive: true });
 
 console.log(`Built static site to ${outDir}`);

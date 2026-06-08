@@ -182,7 +182,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
           return (
             <div className="pro-entry" key={`${item.company}-${item.date}`}>
               <div className="pro-entry-head pro-experience-head">
-                <strong className={fc("experience", index, "role")} onClick={(e) => click(e, fieldId("experience", index, "role"))} style={fieldStyle(fieldId("experience", index, "role"))}>
+                <strong className={fc("experience", index, "company")} onClick={(e) => click(e, fieldId("experience", index, "company"))} style={fieldStyle(fieldId("experience", index, "company"))}>
                   {item.company}
                 </strong>
                 <span className={fc("experience", index, "role")} onClick={(e) => click(e, fieldId("experience", index, "role"))} style={fieldStyle(fieldId("experience", index, "role"))}>
@@ -209,10 +209,18 @@ export default function ProfessionalTemplate({ resume, ctx }) {
           const showDraft = index === 0 && projectsDraft !== null && !detailsPatch?.active;
           return (
             <div className="pro-entry" key={`${item.name}-${item.date}`}>
-              <div className={`pro-body pro-project-line ${fc("projects", index, "details")}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
+              <div className="pro-entry-head pro-project-head">
                 <strong className={fc("projects", index, "name")} onClick={(e) => click(e, fieldId("projects", index, "name"))} style={fieldStyle(fieldId("projects", index, "name"))}>
-                  【{item.name}】
+                  {item.name}
                 </strong>
+                <span className={fc("projects", index, "role")} onClick={(e) => click(e, fieldId("projects", index, "role"))} style={fieldStyle(fieldId("projects", index, "role"))}>
+                  {item.role}
+                </span>
+                <span className={`pro-date ${fc("projects", index, "date")}`} onClick={(e) => click(e, fieldId("projects", index, "date"))} style={withFieldStyle(fieldId("projects", index, "date"), { fontSize: "var(--r-fs-muted, 12px)" })}>
+                  {item.date}
+                </span>
+              </div>
+              <div className={`pro-body pro-structured-body pro-project-body ${fc("projects", index, "details")}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
                 {renderStructuredField(detailsFid, item.details, showDraft ? projectsDraft : null)}
               </div>
             </div>

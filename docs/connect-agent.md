@@ -18,6 +18,32 @@ Resume Studio 不内置终端。你在**自己喜欢的真终端**（iTerm / War
 
 在 `~/.codex/config.toml` 中添加：
 
+当前这台电脑、当前源码仓库可直接复制：
+
+```toml
+[mcp_servers.resume-studio]
+type = "stdio"
+command = "node"
+args = ["/Users/xuqiwang/Desktop/终端简历编辑器/bridge/mcp-server.cjs"]
+
+[mcp_servers.resume-studio.env]
+WORKSPACE_DIR = "/Users/xuqiwang/Desktop/终端简历编辑器/workspace"
+```
+
+已安装 APP 版可直接复制：
+
+```toml
+[mcp_servers.resume-studio]
+type = "stdio"
+command = "node"
+args = ["/Applications/Resume Studio.app/Contents/Resources/bridge/mcp-server.cjs"]
+
+[mcp_servers.resume-studio.env]
+WORKSPACE_DIR = "/Users/xuqiwang/Documents/ResumeStudio"
+```
+
+通用源码模板：
+
 ```toml
 [mcp_servers.resume-studio]
 type = "stdio"
@@ -86,33 +112,51 @@ agy
 
 进入后先运行 `/mcp`，确认 `resume-studio` 已加载。
 
+如果 `agy` 仍然只显示旧工具（例如 `confirm_patch`、`set_title`），说明它缓存了旧 schema。关闭 `agy` 后删除缓存目录再启动：
+
+```bash
+rm -rf ~/.gemini/antigravity-cli/mcp/resume-studio
+agy
+```
+
+新版工具列表不应包含 `confirm_patch`、`reject_patch`、`set_title`、`set_contact`。
+
 ## 验证连接
 
 1. 启动 Resume Studio 工作台（开发版用 `npm run dev:desktop`；安装版用 `open -a "Resume Studio"`）
 2. 在真终端运行你的 agent（如 `codex`、`claude` 或 `agy`）
-3. 让 agent 执行 `get_resume` 工具——应返回当前简历 JSON
-4. 让 agent 执行 `propose_edit({ sectionId: "experience", index: 0, content: "测试文案" })`
-5. 观察工作台右下角弹出「AI 待确认改动」横幅——连接成功
+3. 让 agent 执行 `get_context` 工具——应返回当前文档、页码、选中字段、简历 JSON
+4. 让 agent 执行 `get_materials` 工具——应返回 `materials/.extracted/` 里的抽取素材
+5. 让 agent 执行 `propose_edit({ sectionId: "experience", index: 0, content: "测试文案" })`
+6. 观察工作台右下角弹出「AI 待确认改动」横幅——连接成功
+
+## 给 Agent 的启动口令
+
+连接后直接复制这句话给 agent：
+
+```text
+你已经连接 Resume Studio MCP。请先调用 get_context，再调用 get_materials。基于 context.selection 判断我当前选中的字段，基于 materials 写一版更强的简历文案；不要直接修改 active-resume.json，只通过 propose_edit 提交一个待确认 patch。
+```
 
 ## 可用的 MCP 工具
 
 | 工具 | 作用 |
 |---|---|
+| `get_context` | 读取当前文档、页码、选中字段、简历、pending patch |
 | `get_resume` | 读取当前简历 + 工作区路径 |
+| `get_materials` | 一次读取抽取素材，避免 agent 自己慢慢找文件 |
 | `propose_edit` | 提议修改（需用户确认） |
 | `propose_edit` + `bulletIndex` | 精确修改某条 bullet（行），不重写整段 |
-| `confirm_patch` | 确认待定改动 |
-| `reject_patch` | 拒绝待定改动 |
 | `get_pending_patch` | 读取当前待确认项 |
-| `set_title` | 直接设置求职意向 |
-| `set_contact` | 直接设置联系方式 |
 | `get_activity` | 读取活动日志 |
 | `get_selection` | 获取用户当前选中的字段 |
 
+Agent 不能确认、拒绝或直接写入简历；`title`、`contact` 和正文一样都通过 `propose_edit` 生成待确认 patch。接受/拒绝只能在 Resume Studio 工作台操作。
+
 ## 推荐工作流
 
-1. Agent 先执行 `get_resume` 了解当前简历内容
-2. Agent 读取 `workspace/materials/.extracted/*.md` 获取你的真实素材
+1. Agent 先执行 `get_context` 了解当前 APP 文档、页码和选中字段
+2. Agent 执行 `get_materials` 获取你的真实素材
 3. Agent 自己写好成品文案，调用 `propose_edit` 提交
 4. 你在工作台点「接受」或「拒绝」，简历实时刷新
 

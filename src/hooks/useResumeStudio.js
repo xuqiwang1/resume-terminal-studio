@@ -18,7 +18,9 @@ import {
   subscribePendingUpdates,
   confirmPendingPatch,
   rejectPendingPatch,
-  syncSelection,
+  syncContextDocument,
+  syncContextSelection,
+  syncContextView,
 } from "../lib/fileClient";
 import { actionDefinitions, initialActivity, initialResume } from "../data/mockResume";
 
@@ -46,6 +48,57 @@ function patchFieldId(sectionId, index) {
   if (sectionId === "contact") return "header.contact";
   return null;
 }
+
+function parseFieldId(fid) {
+  if (!fid) return { sectionId: null, index: null, field: null };
+  const parts = fid.split(".");
+  if (parts[0] === "header") return { sectionId: "header", index: null, field: parts[1] || null };
+  if (parts.length >= 3) {
+    const parsedIndex = Number(parts[1]);
+    return {
+      sectionId: parts[0],
+      index: Number.isInteger(parsedIndex) ? parsedIndex : null,
+      field: parts[2] || null
+    };
+  }
+  return { sectionId: parts[0] || null, index: null, field: parts[1] || null };
+}
+
+function textForField(resume, fid) {
+  const { sectionId, index, field } = parseFieldId(fid);
+  if (!sectionId || !field) return "";
+  if (sectionId === "summary") return resume.summary || "";
+  if (sectionId === "header") return resume[field] || "";
+  const arr = resume[sectionId];
+  if (Array.isArray(arr) && arr[index]) return arr[index][field] || "";
+  return "";
+}
+
+const SECTION_LABELS = {
+  header: "页眉",
+  summary: "个人总结",
+  education: "教育背景",
+  experience: "实习经历",
+  projects: "项目经历",
+  skills: "专业技能"
+};
+
+const FIELD_LABELS = {
+  name: "姓名",
+  title: "求职意向",
+  contact: "联系方式",
+  school: "学校",
+  degree: "学历",
+  major: "专业",
+  date: "时间",
+  tag: "标签",
+  company: "公司",
+  role: "角色",
+  details: "详情",
+  category: "分类",
+  content: "内容",
+  text: "正文"
+};
 
 export function useResumeStudio() {
   const [resume, setResume] = useState(initialResume);
@@ -108,9 +161,23 @@ export function useResumeStudio() {
 
   const onSelectField = useCallback((fid) => {
     setSelectedField(fid);
-    const sectionId = sectionIdFromFieldId(fid);
-    if (sectionId) setActiveSectionId(sectionId);
-    syncSelection({ fieldId: fid, sectionId }).catch(() => {});
+    const parsed = parseFieldId(fid);
+    const sectionId = parsed.sectionId || sectionIdFromFieldId(fid);
+    if (sectionId) setActiveSectionId(sectionId === "header" ? "summary" : sectionId);
+    const selection = {
+      fieldId: fid,
+      sectionId: parsed.sectionId,
+      index: parsed.index,
+      field: parsed.field,
+      sectionLabel: SECTION_LABELS[parsed.sectionId] || "",
+      fieldLabel: FIELD_LABELS[parsed.field] || "",
+      textPreview: textForField(resume, fid)
+    };
+    syncContextSelection(selection).catch(() => {});
+  }, [resume]);
+
+  const syncView = useCallback((view) => {
+    syncContextView(view).catch(() => {});
   }, []);
 
   const onPatchAnimationComplete = useCallback(() => {
@@ -453,6 +520,12 @@ export function useResumeStudio() {
         fileName: currentFileName || `${resume.name || "resume"}-studio`
       });
       setCurrentFileName(saved.fileName);
+      syncContextDocument({
+        mode: "file",
+        fileName: saved.fileName,
+        historyFileName: "",
+        title: saved.document?.meta?.title || saved.fileName
+      }).catch(() => {});
       await refreshFiles();
       setActivityItems((current) => [
         {
@@ -485,6 +558,12 @@ export function useResumeStudio() {
     }
     setFieldStyles(opened.document.resume?.fieldStyles || {});
     setCurrentFileName(opened.fileName);
+    syncContextDocument({
+      mode: "file",
+      fileName: opened.fileName,
+      historyFileName: "",
+      title: opened.document?.meta?.title || opened.fileName
+    }).catch(() => {});
     setActivityItems((current) => [
       {
         label: "File",
@@ -519,6 +598,12 @@ export function useResumeStudio() {
     setDiff({ before: "", after: "" });
     setPatchAnimation(null);
     setActiveSectionId("education");
+    syncContextDocument({
+      mode: "template",
+      fileName: "",
+      historyFileName: "",
+      title: `${nextResume.name || "Your Name"}-resume`
+    }).catch(() => {});
     await refreshHistory();
     setActivityItems((current) => [
       {
@@ -540,6 +625,12 @@ export function useResumeStudio() {
     setCurrentFileName("");
     setDiff({ before: "", after: "" });
     setPatchAnimation(null);
+    syncContextDocument({
+      mode: "history",
+      fileName: "",
+      historyFileName: fileName,
+      title: fileName
+    }).catch(() => {});
     await refreshHistory();
     setActivityItems((current) => [
       {
@@ -627,6 +718,7 @@ export function useResumeStudio() {
     activityState,
     selectedField,
     onSelectField,
+    syncView,
     workingSection,
     pendingPatch,
     confirmPending,

@@ -21,6 +21,7 @@ export default function App() {
     resumeArchives, historyPanelOpen, setHistoryPanelOpen,
     archiveCurrent, startNewResume, openArchive,
     selectedField, onSelectField, workingSection,
+    syncView,
     pendingPatch, confirmPending, rejectPending,
     patchAnimation, onPatchAnimationComplete,
     templateId, setTemplateId,
@@ -116,6 +117,7 @@ export default function App() {
           layoutConfig={layoutConfig} onLayoutConfigChange={setLayoutConfig}
           textSelection={textSelection}
           selectedField={selectedField}
+          activeSectionId={activeSectionId}
           onApplyInlineStyle={applyInlineStyle}
           onApplyFieldStyle={applyFieldStyle}
         />
@@ -143,6 +145,7 @@ export default function App() {
           onAvatarPosChange={setAvatarPos}
           layoutConfig={layoutConfig}
           fieldStyles={fieldStyles}
+          onViewChange={syncView}
         />
       </main>
 
