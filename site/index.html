@@ -148,7 +148,7 @@
           </li>
           <li class="reveal delay-3">
             <span>patch</span>
-            <b>propose_edit 只进入待确认槽。</b>
+            <b>propose_edit / batch 只进入待确认槽。</b>
             <p>AI 不能直接覆盖正文，APP 展示 diff 和预览变化。</p>
           </li>
           <li class="reveal delay-4">
@@ -184,7 +184,7 @@
         <div class="build-grid">
           <article class="build-card reveal">
             <h3>Pending patch as trust primitive</h3>
-            <p>正文类改写走 `propose_edit`，先暂存，展示 diff，确认后才写入 active resume。</p>
+            <p>正文类改写走 `propose_edit` 或 `propose_batch_edit`，先暂存，展示 diff，确认后才写入 active resume。</p>
           </article>
           <article class="build-card reveal delay-1">
             <h3>Workspace privacy boundary</h3>
@@ -202,8 +202,8 @@
           <p class="eyebrow">Agent support</p>
           <h2>支持现有终端 AI 工作流，而不是替代它们。</h2>
           <p>
-            Resume Studio 暴露本地 MCP server。agent 可以调用 `get_resume`、`propose_edit`、
-            `get_pending_patch`、`confirm_patch`、`reject_patch` 等工具。
+            Resume Studio 暴露本地 MCP server。agent 可以调用 `get_context`、`get_materials`、
+            `propose_edit`、`propose_batch_edit`、`get_pending_patch` 等工具；接受和拒绝只在 APP 里完成。
           </p>
         </div>
         <div class="agent-stack reveal delay-1">

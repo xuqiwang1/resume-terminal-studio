@@ -173,7 +173,7 @@ agy
 2. 把素材放进工作区 `materials/`，运行 `npm run ingest`。
 3. 在终端启动 Codex、Claude Code 或 `agy`。
 4. 让 agent 先调用 `get_context`，再调用 `get_materials`。
-5. agent 写好文案后调用 `propose_edit`。
+5. agent 写好文案后，单点改动调用 `propose_edit`，成组任务调用 `propose_batch_edit`。
 6. 你在工作台确认或拒绝改动。
 
 ## GitHub 上传边界

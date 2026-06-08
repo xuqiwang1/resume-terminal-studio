@@ -47,12 +47,12 @@ async function run() {
       case "experience":
       case "project": {
         throw new Error(
-          'Direct content editing has been removed. Use: resume-agent ask "把个人总结改得更像 AI 产品经理"'
+          "Direct content editing has been removed. Ask your terminal AI agent to read materials/.extracted/ and submit via MCP propose_edit or propose_batch_edit."
         );
       }
       case "ask": {
         throw new Error(
-          'resume-agent ask 已移除。请让你的终端 AI agent（Codex/Claude）读取 materials/.extracted/，自己写好文案后通过 MCP 工具 propose_edit 提交。'
+          'resume-agent ask 已移除。请让你的终端 AI agent（Codex/Claude）读取 materials/.extracted/，自己写好文案后通过 MCP 工具 propose_edit 或 propose_batch_edit 提交。'
         );
       }
       case "ingest": {
@@ -81,7 +81,7 @@ async function run() {
   title 新标题                            # 暂存标题改动，需在 APP 接受
   contact 新联系方式                      # 暂存联系方式改动，需在 APP 接受
 
-注：正文改写由你的终端 AI agent 读取 materials/.extracted/ 后，通过 MCP 工具 propose_edit 提交。
+注：正文改写由你的终端 AI agent 读取 materials/.extracted/ 后，通过 MCP 工具 propose_edit 或 propose_batch_edit 提交。
 注：接受/拒绝只能在工作台界面操作，避免 agent 绕过用户确认。
 注：PDF 导出请在工作台界面中操作（预览即导出，所见即所得）。
 

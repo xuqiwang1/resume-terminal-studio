@@ -36,9 +36,9 @@ AI resume builder 常见卖点包括 ATS、模板、JD tailor、AI rewrite、PDF
 
 ### 1. AI 提议，人确认
 
-AI 生成内容的不确定性和 agent 绕过用户确认都是核心风险。项目将 title/contact/正文改写统一收敛到 `propose_edit`：agent 自己写好成品文案，提交到 pending patch，前端展示 diff，用户接受后才落盘。
+AI 生成内容的不确定性和 agent 绕过用户确认都是核心风险。项目将 title/contact/正文改写统一收敛到待确认 MCP 入口：窄范围改动用 `propose_edit`，一个完整任务里的多字段改动用 `propose_batch_edit`。agent 自己写好成品文案，提交到 pending patch，前端展示 diff，用户接受后才落盘。
 
-确定性字段如 title/contact 可以直接写入，因为风险不在模型生成，而在是否偷偷覆盖正文资产。
+用户在工作台里的手动编辑可以直接生效，因为用户就是作者；agent 生成的 title/contact/正文都必须先进 pending patch。
 
 ### 2. 本地优先
 
@@ -48,7 +48,7 @@ AI 生成内容的不确定性和 agent 绕过用户确认都是核心风险。�
 
 产品不是单点功能集合，而是一条连续链路：
 
-`materials -> ingest -> extracted markdown -> terminal agent -> MCP propose_edit -> pending diff -> user confirm -> active resume -> history/PDF`
+`materials -> ingest -> extracted markdown -> terminal agent -> MCP propose_edit/propose_batch_edit -> pending diff -> user confirm -> active resume -> history/PDF`
 
 这条链路让每个关键状态都有明确归属：素材由用户提供，写作由 agent 完成，确认由用户完成，写入由 engine 完成。
 
@@ -86,7 +86,7 @@ AI 生成内容的不确定性和 agent 绕过用户确认都是核心风险。�
 ### MCP Server
 
 - `bridge/mcp-server.cjs` 通过 stdio 暴露工具给 Codex/Claude/agy。
-- 核心工具包括 `get_context`、`get_resume`、`get_materials`、`propose_edit`、`get_pending_patch`、`get_activity`、`get_selection`。
+- 核心工具包括 `get_context`、`get_resume`、`get_materials`、`propose_edit`、`propose_batch_edit`、`get_pending_patch`、`get_activity`、`get_selection`。
 - agent 不应直接写 `active-resume.json`，也不能确认/拒绝 pending patch；必须走 MCP 工具提交待确认改动，由用户在 APP 里接受或拒绝。
 
 ### Storage
@@ -101,7 +101,7 @@ AI 生成内容的不确定性和 agent 绕过用户确认都是核心风险。�
 
 ### Pending patch 单槽机制
 
-`propose_edit` 不写简历，只写 pending patch。pending patch 包含 before、after、sectionId、index、field、bulletIndex 等定位信息。用户确认后，engine 才将 patch 应用到 active resume，并清空 pending slot。
+`propose_edit` / `propose_batch_edit` 不写简历，只写 pending patch。single patch 包含 before、after、sectionId、index、field、bulletIndex 等定位信息；batch patch 包含一组已校验的 changes。用户确认后，engine 才将 patch 应用到 active resume，并清空 pending slot。
 
 单槽设计降低复杂度：同一时间只有一个待确认改动，避免多 patch 排队时的冲突和认知负担。
 

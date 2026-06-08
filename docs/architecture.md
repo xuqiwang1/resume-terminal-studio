@@ -36,14 +36,14 @@
 
 | 操作类型 | 例子 | 是否需要确认 |
 |---|---|---|
-| Agent 写入 | `propose_edit` 改写 title/contact/summary/experience/projects/education/skills | ✅ 先进待确认暂存，人点「接受」才落库 |
+| Agent 写入 | `propose_edit` 单字段改写，或 `propose_batch_edit` 成组改写 title/contact/summary/experience/projects/education/skills | ✅ 先进待确认暂存，人点「接受」才落库 |
 | 用户手动编辑 | 在预览里自己打字 | ❌ 直接生效（用户即作者） |
 
-**谁来"写文案"**：写作的智能**不在本项目里**，在终端的 agent（Codex/Claude）。agent 先读素材、自己写好成品文案，再通过 `propose_edit({sectionId, index, field, content})` 提交。engine 收到 content **原样暂存，不做任何改写**。
+**谁来"写文案"**：写作的智能**不在本项目里**，在终端的 agent（Codex/Claude）。agent 先读素材、自己写好成品文案，再通过 `propose_edit({sectionId, index, field, content})` 提交单字段改动，或通过 `propose_batch_edit({title, summary, changes})` 提交一个完整任务里的多项改动。engine 收到 content/value **原样暂存，不做任何改写**。
 
 ### 简历数据结构（契约）
 
-`active-resume.json` 的字段与 `propose_edit` 的定位关系：
+`active-resume.json` 的字段与 `propose_edit` / `propose_batch_edit` 的定位关系：
 
 | sectionId | 类型 | 可改子字段（field） | 默认 field |
 |---|---|---|---|
@@ -60,14 +60,15 @@
 - 对数组类 section，`index` 0 提议到**空数组**时视为追加一条新项；越界 index 或非法 field 会被引擎拒绝、不写暂存槽。
 
 
-**机制**：所有 AI 生成类改动统一经过引擎层的 `proposeEdit → commitPatch / rejectPatch` 三段式。
+**机制**：所有 AI 生成类改动统一经过引擎层的 `proposeEdit` / `proposeBatchEdit → commitPatch / rejectPatch` 三段式。
 
 - `proposeEdit`：校验 target、记录 before、把 agent 写好的 content 存入单槽 `pending-patch.json`，**不写盘**
+- `proposeBatchEdit`：校验整组 changes，记录每项 before/after，把一个任务级 batch 存入同一个 pending 槽，**不写盘**
 - 工作台收到 SSE `pending` 事件 → 弹出 diff 横幅
 - `commitPatch`：用户接受后**唯一的写入口**
 - `rejectPatch`：放弃，简历零改动
 
-**关键性质**：agent 写入只有**唯一入口** `propose_edit`（MCP）。原生终端的 `resume-agent` 已移除 `ask`，并禁用 `confirm`/`reject`，避免 agent 通过 Bash 替用户确认。工作区 `CLAUDE.md` / `AGENTS.md` 也会明令禁止 agent 直接修改 `active-resume.json`、重启 APP 或改打包文件。新提议覆盖旧提议（单槽语义），保证待确认状态永远唯一、可解释。
+**关键性质**：agent 写入只有**待确认 MCP 入口**：`propose_edit` 用于单点改动，`propose_batch_edit` 用于一个任务级批量改动。原生终端的 `resume-agent` 已移除 `ask`，并禁用 `confirm`/`reject`，避免 agent 通过 Bash 替用户确认。工作区 `CLAUDE.md` / `AGENTS.md` 也会明令禁止 agent 直接修改 `active-resume.json`、重启 APP 或改打包文件。新提议覆盖旧提议（单槽语义），保证待确认状态永远唯一、可解释。
 
 ## 素材摄入：读放开，但先抽成干净文本
 

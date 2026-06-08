@@ -127,7 +127,7 @@ agy
 2. 在真终端运行你的 agent（如 `codex`、`claude` 或 `agy`）
 3. 让 agent 执行 `get_context` 工具——应返回当前文档、页码、选中字段、简历 JSON
 4. 让 agent 执行 `get_materials` 工具——应返回 `materials/.extracted/` 里的抽取素材
-5. 让 agent 执行 `propose_edit({ sectionId: "experience", index: 0, content: "测试文案" })`
+5. 让 agent 执行 `propose_edit({ sectionId: "experience", index: 0, content: "测试文案" })`，或用 `propose_batch_edit` 提交一个包含多项 change 的任务级草稿
 6. 观察工作台右下角弹出「AI 待确认改动」横幅——连接成功
 
 ## 给 Agent 的启动口令
@@ -135,7 +135,7 @@ agy
 连接后直接复制这句话给 agent：
 
 ```text
-你已经连接 Resume Studio MCP。请先调用 get_context，再调用 get_materials。基于 context.selection 判断我当前选中的字段，基于 materials 写一版更强的简历文案；不要直接修改 active-resume.json，只通过 propose_edit 提交一个待确认 patch。
+你已经连接 Resume Studio MCP。请先调用 get_context，再调用 get_materials。基于 context.selection 判断我当前选中的字段，基于 materials 写一版更强的简历文案；不要直接修改 active-resume.json。单字段或单 bullet 用 propose_edit；一个完整任务里的多字段、多条目改动用 propose_batch_edit。只提交待确认 patch，等待我在 Resume Studio 里接受或拒绝。
 ```
 
 ## 可用的 MCP 工具
@@ -158,7 +158,7 @@ Agent 不能确认、拒绝或直接写入简历；单字段改动通过 `propos
 
 1. Agent 先执行 `get_context` 了解当前 APP 文档、页码和选中字段
 2. Agent 执行 `get_materials` 获取你的真实素材
-3. Agent 自己写好成品文案，调用 `propose_edit` 提交
+3. Agent 自己写好成品文案，单点改动调用 `propose_edit`，成组任务调用 `propose_batch_edit`
 4. 你在工作台点「接受」或「拒绝」，简历实时刷新
 
 布局、字号、对齐方式请在工作台左侧样式面板直接调整——这些视觉操作不需要走 agent。

@@ -8,8 +8,9 @@ This repository builds **Resume Studio**, a local-first desktop resume workbench
 - Do not edit files under `workspace/`, `~/Documents/ResumeStudio/`, `history/`, or `materials/` unless the user explicitly asks for workspace maintenance.
 - Do not run `resume-agent confirm` or `resume-agent reject`.
 - Do not quit, kill, reopen, rebuild, unpack, or patch the installed app unless the user explicitly asks for app development work.
-- For resume content changes, use the MCP flow: `get_context` -> `get_materials` -> `propose_edit`.
-- `propose_edit` only stages a pending patch. The user accepts or rejects it in the Resume Studio app.
+- For resume content changes, use the MCP flow: `get_context` -> `get_materials` -> `propose_edit` or `propose_batch_edit`.
+- Use `propose_edit` for one narrow field/bullet edit. Use `propose_batch_edit` for one coherent multi-field or multi-item task.
+- `propose_edit` and `propose_batch_edit` only stage pending patches. The user accepts or rejects them in the Resume Studio app.
 
 ## Development Work
 

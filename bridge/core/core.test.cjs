@@ -109,6 +109,50 @@ assert.equal(core.getResume().projects[0].details, "project one\nproject two\npr
 
 core.setResume({
   name: "Test",
+  summary: "",
+  experience: [{ details: "existing detail" }],
+  projects: [],
+  education: [],
+  skills: []
+});
+
+assert.throws(
+  () =>
+    core.proposeSectionEdit({
+      sessionId: "session-1",
+      sectionId: "experience",
+      index: 9,
+      content: "nope"
+    }),
+  /experience\[9\] does not exist/
+);
+
+assert.throws(
+  () =>
+    core.proposeSectionEdit({
+      sessionId: "session-1",
+      sectionId: "education",
+      index: 0,
+      field: "not-a-field",
+      content: "nope"
+    }),
+  /education field "not-a-field" is invalid/
+);
+
+const appendStructuredPending = core.proposeSectionEdit({
+  sessionId: "session-1",
+  sectionId: "education",
+  index: 0,
+  field: "school",
+  content: "新学校"
+});
+
+assert.equal(appendStructuredPending.append, true);
+core.confirmPendingPatch({ sessionId: "session-1", pendingId: appendStructuredPending.id });
+assert.equal(core.getResume().education[0].school, "新学校");
+
+core.setResume({
+  name: "Test",
   title: "Old title",
   contact: "Old contact",
   summary: "",

@@ -7,6 +7,13 @@ const SECTION_FIELDS = {
   projects: ["name", "role", "date", "details"]
 };
 
+const DEFAULT_FIELD = {
+  education: "school",
+  skills: "content",
+  experience: "details",
+  projects: "details"
+};
+
 function cloneResume(resume) {
   return JSON.parse(JSON.stringify(resume || {}));
 }
@@ -15,13 +22,13 @@ function getFieldValue(resume, sectionId, index = 0, field) {
   if (sectionId === "summary" || sectionId === "title" || sectionId === "contact") {
     return resume?.[sectionId] || "";
   }
-  const targetField = field || "details";
+  const targetField = field || DEFAULT_FIELD[sectionId] || "details";
   return resume?.[sectionId]?.[index]?.[targetField] || "";
 }
 
 function getPatchBefore(resume, { sectionId, index = 0, field, bulletIndex }) {
   const value = getFieldValue(resume, sectionId, index, field);
-  const targetField = field || "details";
+  const targetField = field || DEFAULT_FIELD[sectionId] || "details";
   if (targetField === "details" && typeof bulletIndex === "number" && bulletIndex >= 0) {
     return value.split("\n")[bulletIndex] || "";
   }
@@ -48,6 +55,64 @@ function validateExistingItem(resume, sectionId, index) {
   return arr[index];
 }
 
+function validateSinglePatchInput(resume, { sectionId, index = 0, field, content, bulletIndex }) {
+  const allowed = ["title", "contact", "summary", "experience", "projects", "education", "skills"];
+  if (!allowed.includes(sectionId)) {
+    throw new Error(`proposeEdit only supports ${allowed.join(", ")}.`);
+  }
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("proposeEdit requires non-empty content (the finished text written by the agent).");
+  }
+
+  if (sectionId === "title" || sectionId === "contact" || sectionId === "summary") {
+    return {
+      field: undefined,
+      before: resume?.[sectionId] || "",
+      bulletIndex: undefined,
+      append: undefined
+    };
+  }
+
+  const targetField = field || DEFAULT_FIELD[sectionId] || "details";
+  validateStructuredField(sectionId, targetField);
+  const arr = resume?.[sectionId];
+  if (Array.isArray(arr) && arr.length === 0 && index === 0) {
+    return {
+      field: targetField,
+      before: "",
+      bulletIndex: undefined,
+      append: true
+    };
+  }
+
+  const current = validateExistingItem(resume, sectionId, index);
+  const fullValue = current[targetField] || "";
+  if (typeof bulletIndex === "number" && bulletIndex >= 0 && targetField === "details") {
+    const lines = fullValue.split("\n");
+    if (bulletIndex >= lines.length) {
+      return {
+        field: targetField,
+        before: "",
+        bulletIndex,
+        append: undefined
+      };
+    }
+    return {
+      field: targetField,
+      before: lines[bulletIndex],
+      bulletIndex,
+      append: undefined
+    };
+  }
+
+  return {
+    field: targetField,
+    before: fullValue,
+    bulletIndex: undefined,
+    append: undefined
+  };
+}
+
 function applySinglePatch(resume, patch) {
   if (patch.sectionId === "summary" || patch.sectionId === "title" || patch.sectionId === "contact") {
     return { ...resume, [patch.sectionId]: patch.after };
@@ -56,6 +121,12 @@ function applySinglePatch(resume, patch) {
   const targetField = patch.field || "details";
   const targetIndex = patch.index ?? 0;
   const nextItems = [...(resume[patch.sectionId] || [])];
+  if (patch.append) {
+    return {
+      ...resume,
+      [patch.sectionId]: [...nextItems, { [targetField]: patch.after }]
+    };
+  }
   const current = nextItems[targetIndex];
   if (!current) return resume;
   if (targetField === "details" && typeof patch.bulletIndex === "number" && patch.bulletIndex >= 0) {
@@ -235,16 +306,23 @@ function createResumeCore({ bus, persistence }) {
   }
 
   function proposeSectionEdit({ sessionId, sectionId, content, index = 0, field, bulletIndex }) {
-    const before = getPatchBefore(resume, { sectionId, index, field, bulletIndex });
+    const normalized = validateSinglePatchInput(resume, {
+      sectionId,
+      index,
+      field,
+      content,
+      bulletIndex
+    });
     pendingPatch = {
       id: crypto.randomUUID(),
       kind: "single",
       sessionId,
       sectionId,
-      index,
-      field,
-      bulletIndex,
-      before,
+      index: ["title", "contact", "summary"].includes(sectionId) ? undefined : index,
+      field: normalized.field,
+      bulletIndex: normalized.bulletIndex,
+      append: normalized.append,
+      before: normalized.before,
       after: content
     };
     persistence.savePendingPatch(pendingPatch);

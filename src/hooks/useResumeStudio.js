@@ -3,6 +3,16 @@ import { runBridgeAction } from "../lib/bridgeClient";
 import { desktopSessionInfo } from "../lib/appClient";
 import { toSegments, applyStyleToRange, toPlainText } from "../lib/richText";
 import {
+  describePendingPatch,
+  FIELD_LABELS,
+  getPendingPatchPrimarySection,
+  parseFieldId,
+  patchFieldId,
+  SECTION_LABELS,
+  sectionIdFromFieldId,
+  textForField
+} from "./resumeStudioHelpers";
+import {
   fetchActiveResume,
   fetchActivityState,
   fetchBridgeHealth,
@@ -32,94 +42,6 @@ function waitForLayout() {
     requestAnimationFrame(() => requestAnimationFrame(resolve));
   });
 }
-
-function sectionIdFromFieldId(fid) {
-  if (!fid) return null;
-  const part = fid.split(".")[0];
-  if (part === "header") return "summary";
-  return part;
-}
-
-function patchFieldId(sectionId, index) {
-  if (sectionId === "summary") return "summary.text";
-  if (sectionId === "experience") return `experience.${index ?? 0}.details`;
-  if (sectionId === "projects") return `projects.${index ?? 0}.details`;
-  if (sectionId === "title") return "header.title";
-  if (sectionId === "contact") return "header.contact";
-  return null;
-}
-
-function normalizePendingSection(sectionId) {
-  if (sectionId === "title" || sectionId === "contact") return "summary";
-  return sectionId || null;
-}
-
-function getPendingPatchPrimarySection(pending) {
-  if (!pending) return null;
-  if (pending.kind === "batch") {
-    return normalizePendingSection(pending.changes?.[0]?.sectionId);
-  }
-  return normalizePendingSection(pending.sectionId);
-}
-
-function describePendingPatch(pending) {
-  if (!pending) return "AI 改动";
-  if (pending.kind === "batch") {
-    return pending.title || `批量改动（${pending.changes?.length || 0} 项）`;
-  }
-  return pending.sectionId || "AI 改动";
-}
-
-function parseFieldId(fid) {
-  if (!fid) return { sectionId: null, index: null, field: null };
-  const parts = fid.split(".");
-  if (parts[0] === "header") return { sectionId: "header", index: null, field: parts[1] || null };
-  if (parts.length >= 3) {
-    const parsedIndex = Number(parts[1]);
-    return {
-      sectionId: parts[0],
-      index: Number.isInteger(parsedIndex) ? parsedIndex : null,
-      field: parts[2] || null
-    };
-  }
-  return { sectionId: parts[0] || null, index: null, field: parts[1] || null };
-}
-
-function textForField(resume, fid) {
-  const { sectionId, index, field } = parseFieldId(fid);
-  if (!sectionId || !field) return "";
-  if (sectionId === "summary") return resume.summary || "";
-  if (sectionId === "header") return resume[field] || "";
-  const arr = resume[sectionId];
-  if (Array.isArray(arr) && arr[index]) return arr[index][field] || "";
-  return "";
-}
-
-const SECTION_LABELS = {
-  header: "页眉",
-  summary: "个人总结",
-  education: "教育背景",
-  experience: "实习经历",
-  projects: "项目经历",
-  skills: "专业技能"
-};
-
-const FIELD_LABELS = {
-  name: "姓名",
-  title: "求职意向",
-  contact: "联系方式",
-  school: "学校",
-  degree: "学历",
-  major: "专业",
-  date: "时间",
-  tag: "标签",
-  company: "公司",
-  role: "角色",
-  details: "详情",
-  category: "分类",
-  content: "内容",
-  text: "正文"
-};
 
 export function useResumeStudio() {
   const [resume, setResume] = useState(initialResume);
@@ -179,6 +101,26 @@ export function useResumeStudio() {
 
   const prevResumeRef = useRef(null);
   const initialLoadDone = useRef(false);
+
+  const pushActivityItem = useCallback((item) => {
+    setActivityItems((current) => [item, ...current]);
+  }, []);
+
+  const applyResumeSnapshot = useCallback((nextResume, options = {}) => {
+    const { updatePrevious = false } = options;
+    if (updatePrevious) {
+      prevResumeRef.current = nextResume;
+    }
+    setResume(nextResume);
+    setFieldStyles(nextResume?.fieldStyles || {});
+    if (nextResume && nextResume.avatar !== undefined) {
+      setAvatarState(nextResume.avatar ?? null);
+    }
+  }, []);
+
+  const syncDocumentState = useCallback((document) => {
+    syncContextDocument(document).catch(() => {});
+  }, []);
 
   const onSelectField = useCallback((fid) => {
     setSelectedField(fid);
@@ -290,10 +232,7 @@ export function useResumeStudio() {
     fetchActiveResume()
       .then((data) => {
         const r = data.resume || initialResume;
-        setResume(r);
-        if (r.avatar !== undefined) setAvatarState(r.avatar ?? null);
-        setFieldStyles(r.fieldStyles || {});
-        prevResumeRef.current = r;
+        applyResumeSnapshot(r, { updatePrevious: true });
         initialLoadDone.current = true;
       })
       .catch(() => {
@@ -310,12 +249,7 @@ export function useResumeStudio() {
       // agents may write active-resume.json repeatedly while drafting. Treat the
       // stream as state sync only; patch animation is driven by explicit patch
       // events/confirm actions so it cannot replay in a loop.
-      prevResumeRef.current = nextResume;
-      setResume(nextResume);
-      setFieldStyles(nextResume?.fieldStyles || {});
-      if (nextResume && nextResume.avatar !== undefined) {
-        setAvatarState(nextResume.avatar ?? null);
-      }
+      applyResumeSnapshot(nextResume, { updatePrevious: true });
     });
 
     stopActivityStream = subscribeActivityUpdates({
@@ -325,47 +259,35 @@ export function useResumeStudio() {
       activity: ({ event, state }) => {
         setActivityState(state || {});
         if (event.type === "command:start") {
-          setActivityItems((current) => [
-            {
-              label: "Terminal",
-              state: "Started",
-              text: `在本机终端执行：resume-agent ${[event.command, ...(event.args || [])].join(" ")}`
-            },
-            ...current
-          ]);
+          pushActivityItem({
+            label: "Terminal",
+            state: "Started",
+            text: `在本机终端执行：resume-agent ${[event.command, ...(event.args || [])].join(" ")}`
+          });
         }
         if (event.type === "stdout") {
-          setActivityItems((current) => [
-            {
-              label: "stdout",
-              state: "Running",
-              text: event.text
-            },
-            ...current
-          ]);
+          pushActivityItem({
+            label: "stdout",
+            state: "Running",
+            text: event.text
+          });
         }
         if (event.type === "intent") {
           setWorkingSection(
             event.target === "title" || event.target === "contact" ? "summary" : event.target
           );
-          setActivityItems((current) => [
-            {
-              label: "Intent",
-              state: "Parsed",
-              text: `已解析意图：${event.instruction} → ${event.target}`
-            },
-            ...current
-          ]);
+          pushActivityItem({
+            label: "Intent",
+            state: "Parsed",
+            text: `已解析意图：${event.instruction} → ${event.target}`
+          });
         }
         if (event.type === "stderr") {
-          setActivityItems((current) => [
-            {
-              label: "stderr",
-              state: "Error",
-              text: event.text
-            },
-            ...current
-          ]);
+          pushActivityItem({
+            label: "stderr",
+            state: "Error",
+            text: event.text
+          });
         }
         if (event.type === "patch") {
           setDraftState(null);
@@ -417,7 +339,7 @@ export function useResumeStudio() {
       stopActivityStream();
       stopPendingStream();
     };
-  }, []);
+  }, [applyResumeSnapshot, pushActivityItem]);
 
   const runAction = async (actionId) => {
     setActivityItems([]);
@@ -430,7 +352,7 @@ export function useResumeStudio() {
       selectedField,
       handlers: {
         activity: (payload) => {
-          setActivityItems((current) => [payload, ...current]);
+          pushActivityItem(payload);
         },
         focus: (payload) => {
           setActiveSectionId(payload.sectionId);
@@ -459,7 +381,7 @@ export function useResumeStudio() {
         },
         resume: (payload) => {
           prevResumeRef.current = resume;
-          setResume(payload);
+          applyResumeSnapshot(payload);
         },
         done: () => {
           setWorkingSection(null);
@@ -475,14 +397,7 @@ export function useResumeStudio() {
     setWorkingSection(null);
     try {
       const result = await confirmPendingPatch(pendingPatch.id);
-      if (result?.resume) {
-        prevResumeRef.current = result.resume;
-        setResume(result.resume);
-        setFieldStyles(result.resume?.fieldStyles || {});
-        if (result.resume.avatar !== undefined) {
-          setAvatarState(result.resume.avatar ?? null);
-        }
-      }
+      if (result?.resume) applyResumeSnapshot(result.resume, { updatePrevious: true });
       if (pendingPatch.kind !== "batch") {
         setDiff({ before: pendingPatch.before || "", after: pendingPatch.after || "" });
         const fid = patchFieldId(pendingPatch.sectionId, pendingPatch.index);
@@ -497,38 +412,26 @@ export function useResumeStudio() {
       }
       const resolvedSection = getPendingPatchPrimarySection(pendingPatch);
       setActiveSectionId(resolvedSection);
-      setActivityItems((current) => [
-        {
-          label: "Patch",
-          state: "Confirmed",
-          text: `已接受 AI 改动并写入${describePendingPatch(pendingPatch)}。`
-        },
-        ...current
-      ]);
+      pushActivityItem({
+        label: "Patch",
+        state: "Confirmed",
+        text: `已接受 AI 改动并写入${describePendingPatch(pendingPatch)}。`
+      });
     } catch (e) {
-      setActivityItems((current) => [
-        { label: "Patch", state: "Error", text: `确认失败：${e.message}` },
-        ...current
-      ]);
+      pushActivityItem({ label: "Patch", state: "Error", text: `确认失败：${e.message}` });
     }
-  }, [pendingPatch]);
+  }, [applyResumeSnapshot, pendingPatch, pushActivityItem]);
 
   const rejectPending = useCallback(async () => {
     if (!pendingPatch) return;
     setWorkingSection(null);
     try {
       await rejectPendingPatch(pendingPatch.id);
-      setActivityItems((current) => [
-        { label: "Patch", state: "Rejected", text: "已拒绝本次 AI 改动，简历未改变。" },
-        ...current
-      ]);
+      pushActivityItem({ label: "Patch", state: "Rejected", text: "已拒绝本次 AI 改动，简历未改变。" });
     } catch (e) {
-      setActivityItems((current) => [
-        { label: "Patch", state: "Error", text: `拒绝失败：${e.message}` },
-        ...current
-      ]);
+      pushActivityItem({ label: "Patch", state: "Error", text: `拒绝失败：${e.message}` });
     }
-  }, [pendingPatch]);
+  }, [pendingPatch, pushActivityItem]);
 
   const saveCurrentResume = async () => {
     try {
@@ -537,30 +440,24 @@ export function useResumeStudio() {
         fileName: currentFileName || `${resume.name || "resume"}-studio`
       });
       setCurrentFileName(saved.fileName);
-      syncContextDocument({
+      syncDocumentState({
         mode: "file",
         fileName: saved.fileName,
         historyFileName: "",
         title: saved.document?.meta?.title || saved.fileName
-      }).catch(() => {});
+      });
       await refreshFiles();
-      setActivityItems((current) => [
-        {
-          label: "File",
-          state: "Saved",
-          text: `已保存到本地文件：${saved.fileName}`
-        },
-        ...current
-      ]);
+      pushActivityItem({
+        label: "File",
+        state: "Saved",
+        text: `已保存到本地文件：${saved.fileName}`
+      });
     } catch (e) {
-      setActivityItems((current) => [
-        {
-          label: "File",
-          state: "Error",
-          text: `保存失败：${e.message}`
-        },
-        ...current
-      ]);
+      pushActivityItem({
+        label: "File",
+        state: "Error",
+        text: `保存失败：${e.message}`
+      });
       throw e;
     }
   };
@@ -569,94 +466,72 @@ export function useResumeStudio() {
     const latest = recentFiles[0];
     if (!latest) return;
     const opened = await openResumeFile(latest.fileName);
-    setResume(opened.document.resume);
-    if (opened.document.resume?.avatar !== undefined) {
-      setAvatarState(opened.document.resume.avatar ?? null);
-    }
-    setFieldStyles(opened.document.resume?.fieldStyles || {});
+    applyResumeSnapshot(opened.document.resume);
     setCurrentFileName(opened.fileName);
-    syncContextDocument({
+    syncDocumentState({
       mode: "file",
       fileName: opened.fileName,
       historyFileName: "",
       title: opened.document?.meta?.title || opened.fileName
-    }).catch(() => {});
-    setActivityItems((current) => [
-      {
-        label: "File",
-        state: "Opened",
-        text: `已打开本地文件：${opened.fileName}`
-      },
-      ...current
-    ]);
+    });
+    pushActivityItem({
+      label: "File",
+      state: "Opened",
+      text: `已打开本地文件：${opened.fileName}`
+    });
   };
 
   const archiveCurrent = async () => {
     const saved = await archiveCurrentResume("manual-snapshot");
     await refreshHistory();
-    setActivityItems((current) => [
-      {
-        label: "History",
-        state: "Archived",
-        text: `已保存历史版本：${saved.archive?.fileName || "snapshot"}`
-      },
-      ...current
-    ]);
+    pushActivityItem({
+      label: "History",
+      state: "Archived",
+      text: `已保存历史版本：${saved.archive?.fileName || "snapshot"}`
+    });
   };
 
   const startNewResume = async () => {
     const created = await createNewResume("new-template");
     const nextResume = created.resume;
-    prevResumeRef.current = nextResume;
-    setResume(nextResume);
-    setFieldStyles(nextResume?.fieldStyles || {});
-    setAvatarState(nextResume?.avatar ?? null);
+    applyResumeSnapshot(nextResume, { updatePrevious: true });
     setCurrentFileName("");
     setDiff({ before: "", after: "" });
     setPatchAnimation(null);
     setActiveSectionId("education");
-    syncContextDocument({
+    syncDocumentState({
       mode: "template",
       fileName: "",
       historyFileName: "",
       title: `${nextResume.name || "Your Name"}-resume`
-    }).catch(() => {});
+    });
     await refreshHistory();
-    setActivityItems((current) => [
-      {
-        label: "History",
-        state: "New Template",
-        text: `已归档当前简历，并打开新的空白模板。`
-      },
-      ...current
-    ]);
+    pushActivityItem({
+      label: "History",
+      state: "New Template",
+      text: `已归档当前简历，并打开新的空白模板。`
+    });
   };
 
   const openArchive = async (fileName) => {
     const opened = await openResumeArchive(fileName);
     const nextResume = opened.resume;
-    prevResumeRef.current = nextResume;
-    setResume(nextResume);
-    setFieldStyles(nextResume?.fieldStyles || {});
-    setAvatarState(nextResume?.avatar ?? null);
+    applyResumeSnapshot(nextResume, { updatePrevious: true });
     setCurrentFileName("");
     setDiff({ before: "", after: "" });
     setPatchAnimation(null);
-    syncContextDocument({
+    syncDocumentState({
       mode: "history",
       fileName: "",
       historyFileName: fileName,
       title: fileName
-    }).catch(() => {});
+    });
     await refreshHistory();
-    setActivityItems((current) => [
-      {
-        label: "History",
-        state: "Restored",
-        text: `已从历史版本恢复：${fileName}`
-      },
-      ...current
-    ]);
+    pushActivityItem({
+      label: "History",
+      state: "Restored",
+      text: `已从历史版本恢复：${fileName}`
+    });
   };
 
   const fitSinglePage = useCallback(async (target) => {

@@ -6,7 +6,7 @@ Resume Studio handles private resume data and local source materials. Please rep
 
 - Runtime data lives in the local workspace and should not be committed.
 - The local bridge uses a per-session token in the desktop app.
-- AI-written body edits should go through `propose_edit` and pending patch confirmation.
+- AI-written body edits should go through `propose_edit` or `propose_batch_edit` and pending patch confirmation.
 - File-opening endpoints validate file names to prevent path traversal.
 
 ## Reporting

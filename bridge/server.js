@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { actionCatalog } from "./actions.js";
 import runtimeModule from "./core/runtime.cjs";
 import resumeEngine from "./bin/resume-engine.cjs";
+import defaultResumeModule from "./defaultResume.cjs";
 import {
   activeResumePath,
   activityLogPath,
@@ -31,6 +32,7 @@ import {
 
 const { pendingPatchPath } = resumeEngine;
 const { initializeRuntime, getRuntime } = runtimeModule;
+const { createDefaultResume } = defaultResumeModule;
 
 const DEFAULT_PORT = 4318;
 const configuredPort = Number(process.env.RESUME_BRIDGE_PORT || DEFAULT_PORT);
@@ -42,45 +44,7 @@ let activityOffset = 0;
 let startupPromise = null;
 let watchersAttached = false;
 
-const defaultResume = {
-  name: "Your Name",
-  title: "Target Role | Availability | Internship Duration",
-  contact: "Phone | Email | Location",
-  avatar: null,
-  summary: "",
-  education: [
-    {
-      school: "School Name",
-      tag: "",
-      major: "Major",
-      degree: "",
-      date: "YYYY.MM-YYYY.MM"
-    }
-  ],
-  skills: [
-    {
-      category: "Tools",
-      content: "Figma, Excel, SQL"
-    }
-  ],
-  experience: [
-    {
-      company: "Company Name",
-      role: "Role Title",
-      date: "YYYY.MM-YYYY.MM",
-      details:
-        "Describe your work with clear outcomes.\nUse one bullet or paragraph per line so AI edits can target individual lines."
-    }
-  ],
-  projects: [
-    {
-      name: "Project Name",
-      role: "Role Title",
-      date: "YYYY.MM-YYYY.MM",
-      details: "Describe the project goal, your contribution, and measurable result."
-    }
-  ]
-};
+const defaultResume = createDefaultResume();
 
 const sendJson = (res, status, data) => {
   res.statusCode = status;

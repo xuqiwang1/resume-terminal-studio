@@ -1,10 +1,12 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { createEventBus } = require("../core/eventBus.cjs");
+const { createPersistence } = require("../core/persistence.cjs");
+const { createResumeCore } = require("../core/resumeCore.cjs");
+const { resolveWorkspaceDir } = require("../workspacePath.cjs");
 
-const workspaceDir = process.env.WORKSPACE_DIR
-  ? path.resolve(process.env.WORKSPACE_DIR)
-  : path.resolve(__dirname, "../../workspace");
+const workspaceDir = resolveWorkspaceDir(process.env, path.resolve(__dirname, ".."));
 const activeResumePath = path.join(workspaceDir, "active-resume.json");
 const activityLogPath = path.join(workspaceDir, "activity-log.ndjson");
 const activityStatePath = path.join(workspaceDir, "activity-state.json");
@@ -97,57 +99,6 @@ function endCommandSession(sessionId, rawCommand, ok) {
   });
 }
 
-function setSummary(text, sessionId = crypto.randomUUID()) {
-  const resume = loadResume();
-  const before = resume.summary;
-  resume.summary = text;
-  saveResume(resume);
-  logPatch(sessionId, "summary", before, resume.summary);
-  return { resume, patch: { sectionId: "summary", before, after: resume.summary } };
-}
-
-function setTitle(text, sessionId = crypto.randomUUID()) {
-  const resume = loadResume();
-  const before = resume.title;
-  resume.title = text;
-  saveResume(resume);
-  logPatch(sessionId, "title", before, resume.title);
-  return { resume, patch: { sectionId: "title", before, after: resume.title } };
-}
-
-function setContact(text, sessionId = crypto.randomUUID()) {
-  const resume = loadResume();
-  const before = resume.contact;
-  resume.contact = text;
-  saveResume(resume);
-  logPatch(sessionId, "contact", before, resume.contact);
-  return { resume, patch: { sectionId: "contact", before, after: resume.contact } };
-}
-
-function setExperience(index, text, sessionId = crypto.randomUUID()) {
-  const resume = loadResume();
-  if (!resume.experience[index]) {
-    throw new Error(`experience[${index}] does not exist`);
-  }
-  const before = resume.experience[index].details;
-  resume.experience[index].details = text;
-  saveResume(resume);
-  logPatch(sessionId, "experience", before, resume.experience[index].details);
-  return { resume, patch: { sectionId: "experience", before, after: resume.experience[index].details } };
-}
-
-function setProject(index, text, sessionId = crypto.randomUUID()) {
-  const resume = loadResume();
-  if (!resume.projects[index]) {
-    throw new Error(`projects[${index}] does not exist`);
-  }
-  const before = resume.projects[index].details;
-  resume.projects[index].details = text;
-  saveResume(resume);
-  logPatch(sessionId, "projects", before, resume.projects[index].details);
-  return { resume, patch: { sectionId: "projects", before, after: resume.projects[index].details } };
-}
-
 // ---- Pending patch staging layer ----
 // Single-slot staging: an AI-proposed change waits here until the user
 // confirms (commit) or rejects it. Until then active-resume.json is untouched.
@@ -173,86 +124,11 @@ function clearPendingPatch() {
   }
 }
 
-// Empty templates for structured array sections, used when appending a new item.
-function emptyTemplate(sectionId) {
-  if (sectionId === "education") {
-    return { school: "", degree: "", major: "", date: "", tag: "" };
-  }
-  if (sectionId === "skills") {
-    return { category: "", content: "" };
-  }
-  return {};
-}
-
-// Allowed sub-fields per structured section. experience/projects keep "details".
-const SECTION_FIELDS = {
-  experience: ["details", "role", "company", "date"],
-  projects: ["details", "name", "role", "date"],
-  education: ["school", "degree", "major", "date", "tag"],
-  skills: ["category", "content"]
-};
-
-const DEFAULT_FIELD = {
-  experience: "details",
-  projects: "details",
-  education: "school",
-  skills: "content"
-};
-
-// Apply a patch object onto a resume in-place-ish (returns mutated resume).
-// Mirrors bridge/actions.js applyPatchToResume so commit and live actions agree.
-function applyPatchToResume(resume, patch) {
-  if (!patch) return resume;
-  const { sectionId, after } = patch;
-  if (sectionId === "summary") {
-    resume.summary = after;
-  } else if (sectionId === "title") {
-    resume.title = after;
-  } else if (sectionId === "contact") {
-    resume.contact = after;
-  } else if (sectionId === "experience") {
-    const index = patch.index ?? 0;
-    const field = patch.field || "details";
-    if (resume.experience?.[index]) {
-      if (typeof patch.bulletIndex === "number" && field === "details") {
-        const lines = (resume.experience[index][field] || "").split("\n");
-        if (patch.bulletIndex >= lines.length) {
-          lines.push(after);
-        } else {
-          lines[patch.bulletIndex] = after;
-        }
-        resume.experience[index][field] = lines.join("\n");
-      } else {
-        resume.experience[index][field] = after;
-      }
-    }
-  } else if (sectionId === "projects") {
-    const index = patch.index ?? 0;
-    const field = patch.field || "details";
-    if (resume.projects?.[index]) {
-      if (typeof patch.bulletIndex === "number" && field === "details") {
-        const lines = (resume.projects[index][field] || "").split("\n");
-        if (patch.bulletIndex >= lines.length) {
-          lines.push(after);
-        } else {
-          lines[patch.bulletIndex] = after;
-        }
-        resume.projects[index][field] = lines.join("\n");
-      } else {
-        resume.projects[index][field] = after;
-      }
-    }
-  } else if (sectionId === "education" || sectionId === "skills") {
-    const index = patch.index ?? 0;
-    const field = patch.field || DEFAULT_FIELD[sectionId];
-    if (!Array.isArray(resume[sectionId])) resume[sectionId] = [];
-    if (patch.append) {
-      resume[sectionId].push({ ...emptyTemplate(sectionId), [field]: after });
-    } else if (resume[sectionId][index]) {
-      resume[sectionId][index][field] = after;
-    }
-  }
-  return resume;
+function createEngineCore() {
+  const persistence = createPersistence({ workspaceDir });
+  const bus = createEventBus();
+  const core = createResumeCore({ bus, persistence });
+  return { core, persistence };
 }
 
 // Step 1: an agent proposes a finished edit. The agent (Codex/Claude) has
@@ -261,79 +137,21 @@ function applyPatchToResume(resume, patch) {
 // before-value, and stores the proposal in the single pending slot.
 // It does NOT write active-resume.json.
 function proposeEdit({ sectionId, index = 0, field, content, bulletIndex }, sessionId = crypto.randomUUID()) {
-  const allowed = ["title", "contact", "summary", "experience", "projects", "education", "skills"];
-  if (!allowed.includes(sectionId)) {
-    throw new Error(`proposeEdit only supports ${allowed.join(", ")}.`);
-  }
-  if (typeof content !== "string" || !content.trim()) {
-    throw new Error("proposeEdit requires non-empty content (the finished text written by the agent).");
-  }
-
-  const resume = loadResume();
-  let before;
-  let resolvedField;
-  let append = false;
-  let resolvedBulletIndex;
-
-  if (sectionId === "title" || sectionId === "contact" || sectionId === "summary") {
-    before = resume[sectionId] || "";
-  } else {
-    // Resolve and validate the target sub-field for this section.
-    resolvedField = field || DEFAULT_FIELD[sectionId];
-    const allowedFields = SECTION_FIELDS[sectionId];
-    if (!allowedFields.includes(resolvedField)) {
-      throw new Error(
-        `${sectionId} only allows fields: ${allowedFields.join(", ")} (got "${resolvedField}").`
-      );
-    }
-
-    const arr = resume[sectionId];
-    if (Array.isArray(arr) && arr.length === 0 && index === 0) {
-      // Append semantics: proposing onto an empty array stages a brand-new item.
-      append = true;
-      before = "";
-    } else if (Array.isArray(arr) && arr[index]) {
-      const fullValue = arr[index][resolvedField] || "";
-      // Bullet-level editing: if bulletIndex is specified and field is text-like,
-      // extract only that bullet (line) as "before", so the diff is precise.
-      if (typeof bulletIndex === "number" && bulletIndex >= 0 && resolvedField === "details") {
-        const lines = fullValue.split("\n");
-        if (bulletIndex >= lines.length) {
-          // Appending a new bullet at the end
-          before = "";
-          resolvedBulletIndex = bulletIndex;
-        } else {
-          before = lines[bulletIndex];
-          resolvedBulletIndex = bulletIndex;
-        }
-      } else {
-        before = fullValue;
-      }
-    } else {
-      throw new Error(`${sectionId}[${index}] does not exist`);
-    }
-  }
-
-  const pending = {
-    id: crypto.randomUUID(),
+  const { core } = createEngineCore();
+  const pending = core.proposeSectionEdit({
     sessionId,
     sectionId,
-    index: ["title", "contact", "summary"].includes(sectionId) ? undefined : index,
-    field: resolvedField,
-    bulletIndex: resolvedBulletIndex,
-    append: append || undefined,
-    before,
-    after: content,
-    status: "pending",
-    createdAt: new Date().toISOString()
-  };
-  writePendingPatch(pending);
+    index,
+    field,
+    bulletIndex,
+    content
+  });
   appendActivity({
     type: "proposed",
     sessionId,
     pendingId: pending.id,
     sectionId,
-    before,
+    before: pending.before,
     after: content,
     at: new Date().toISOString()
   });
@@ -342,10 +160,10 @@ function proposeEdit({ sectionId, index = 0, field, content, bulletIndex }, sess
     patch: {
       sectionId,
       index: pending.index,
-      field: resolvedField,
-      bulletIndex: resolvedBulletIndex,
+      field: pending.field,
+      bulletIndex: pending.bulletIndex,
       append: pending.append,
-      before,
+      before: pending.before,
       after: content
     }
   };
@@ -354,41 +172,55 @@ function proposeEdit({ sectionId, index = 0, field, content, bulletIndex }, sess
 // Step 2a: user confirms. Apply the pending patch to the active resume,
 // then clear the slot. This is the ONLY write path for AI-proposed edits.
 function commitPatch(id) {
-  const pending = readPendingPatch();
+  const { core, persistence } = createEngineCore();
+  const pending = persistence.loadPendingPatch();
   if (!pending) {
     throw new Error("No pending patch to commit");
   }
   if (id && pending.id !== id) {
     throw new Error(`Pending patch id mismatch: ${id} != ${pending.id}`);
   }
-  const resume = loadResume();
-  const before = pending.before;
-  applyPatchToResume(resume, pending);
-  saveResume(resume);
-  logPatch(pending.sessionId || crypto.randomUUID(), pending.sectionId, before, pending.after);
-  clearPendingPatch();
+  core.confirmPendingPatch({ pendingId: id });
+  const resume = core.getResume();
+  if (pending.kind === "batch") {
+    appendActivity({
+      type: "patch",
+      sessionId: pending.sessionId || crypto.randomUUID(),
+      pendingId: pending.id,
+      kind: "batch",
+      title: pending.title || "",
+      sectionId: pending.changes?.[0]?.sectionId || "batch",
+      at: new Date().toISOString()
+    });
+  } else {
+    logPatch(pending.sessionId || crypto.randomUUID(), pending.sectionId, pending.before, pending.after);
+  }
   return {
     resume,
-    patch: {
-      sectionId: pending.sectionId,
-      index: pending.index,
-      field: pending.field,
-      before,
-      after: pending.after
-    }
+    patch:
+      pending.kind === "batch"
+        ? { kind: "batch", title: pending.title || "", changes: pending.changes || [] }
+        : {
+            sectionId: pending.sectionId,
+            index: pending.index,
+            field: pending.field,
+            before: pending.before,
+            after: pending.after
+          }
   };
 }
 
 // Step 2b: user rejects. Discard the pending patch, leave the resume untouched.
 function rejectPatch(id) {
-  const pending = readPendingPatch();
+  const { core, persistence } = createEngineCore();
+  const pending = persistence.loadPendingPatch();
   if (!pending) {
     return { rejected: false };
   }
   if (id && pending.id !== id) {
     throw new Error(`Pending patch id mismatch: ${id} != ${pending.id}`);
   }
-  clearPendingPatch();
+  core.rejectPendingPatch({ pendingId: id });
   appendActivity({
     type: "rejected",
     sessionId: pending.sessionId,
@@ -406,7 +238,6 @@ module.exports = {
   pendingPatchPath,
   materialsDir,
   extractedDir,
-  applyPatchToResume,
   appendActivity,
   clearPendingPatch,
   commitPatch,
@@ -418,11 +249,6 @@ module.exports = {
   readPendingPatch,
   rejectPatch,
   saveResume,
-  setContact,
-  setExperience,
-  setProject,
-  setSummary,
-  setTitle,
   startCommandSession,
   terminalAgentPath: path.join(workspaceDir, "resume-agent"),
   updateActivityState,
