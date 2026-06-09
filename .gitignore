@@ -48,3 +48,6 @@ workspace/materials/.extracted/
 
 # Logs
 *.log
+
+# Local isolated worktrees
+.worktrees/
