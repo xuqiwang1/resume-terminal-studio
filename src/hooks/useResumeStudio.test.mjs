@@ -20,8 +20,8 @@ check("hook fetches pending on initial load", source.includes("fetchPendingPatch
 check("hook records pending fetch errors", source.includes("读取待确认改动失败"));
 check("hook syncs active document after initial resume load", source.includes("syncDocumentState(") && source.includes("data.activeResumePath || \"\""));
 check("hook preserves existing startup document", source.includes("sameActivePath"));
-check("hook syncs documentId", source.includes("documentId"));
-check("hook syncs revision", source.includes("revision"));
+check("hook does not compute documentId client-side", !source.includes("const documentId ="));
+check("hook does not compute revision client-side", !source.includes("revision: documentId.length"));
 check("hook syncs activeResumePath", source.includes("activeResumePath"));
 
 if (failures > 0) {

@@ -52,15 +52,12 @@ function buildDocumentState({
   title = "",
   activeResumePath = ""
 }) {
-  const documentId = `${mode}:${fileName || historyFileName || "active"}`;
   return {
-    documentId,
     mode,
     fileName,
     historyFileName,
     title,
-    activeResumePath,
-    revision: documentId.length
+    activeResumePath
   };
 }
 
@@ -262,17 +259,17 @@ export function useResumeStudio() {
           .then((contextData) => {
             const existingDocument = contextData.context?.document;
             const sameActivePath = existingDocument?.activeResumePath === activeResumePath;
-            syncDocumentState(
-              sameActivePath
-                ? { ...existingDocument, activeResumePath }
-                : buildDocumentState({
-                    mode: "template",
-                    fileName: "",
-                    historyFileName: "",
-                    title: `${r.name || "Your Name"}-resume`,
-                    activeResumePath
-                  })
-            ).catch(() => {});
+            if (!sameActivePath) {
+              syncDocumentState(
+                buildDocumentState({
+                  mode: "template",
+                  fileName: "",
+                  historyFileName: "",
+                  title: `${r.name || "Your Name"}-resume`,
+                  activeResumePath
+                })
+              ).catch(() => {});
+            }
           })
           .catch(() => {
             syncDocumentState(
@@ -502,15 +499,6 @@ export function useResumeStudio() {
         fileName: currentFileName || `${resume.name || "resume"}-studio`
       });
       setCurrentFileName(saved.fileName);
-      await syncDocumentState({
-        ...buildDocumentState({
-          mode: "file",
-          fileName: saved.fileName,
-          historyFileName: "",
-          title: saved.document?.meta?.title || saved.fileName,
-          activeResumePath: bridgeStatus.activeResumePath
-        })
-      });
       await refreshFiles();
       pushActivityItem({
         label: "File",
@@ -533,15 +521,6 @@ export function useResumeStudio() {
     const opened = await openResumeFile(latest.fileName);
     applyResumeSnapshot(opened.document.resume);
     setCurrentFileName(opened.fileName);
-    await syncDocumentState({
-      ...buildDocumentState({
-        mode: "file",
-        fileName: opened.fileName,
-        historyFileName: "",
-        title: opened.document?.meta?.title || opened.fileName,
-        activeResumePath: bridgeStatus.activeResumePath
-      })
-    });
     setPendingPatch(null);
     pushActivityItem({
       label: "File",
@@ -568,15 +547,6 @@ export function useResumeStudio() {
     setDiff({ before: "", after: "" });
     setPatchAnimation(null);
     setActiveSectionId("education");
-    await syncDocumentState({
-      ...buildDocumentState({
-        mode: "template",
-        fileName: "",
-        historyFileName: created.archived?.fileName || "",
-        title: `${nextResume.name || "Your Name"}-resume`,
-        activeResumePath: bridgeStatus.activeResumePath
-      })
-    });
     setPendingPatch(null);
     await refreshHistory();
     pushActivityItem({
@@ -593,15 +563,6 @@ export function useResumeStudio() {
     setCurrentFileName("");
     setDiff({ before: "", after: "" });
     setPatchAnimation(null);
-    await syncDocumentState({
-      ...buildDocumentState({
-        mode: "history",
-        fileName: "",
-        historyFileName: fileName,
-        title: fileName,
-        activeResumePath: bridgeStatus.activeResumePath
-      })
-    });
     setPendingPatch(null);
     await refreshHistory();
     pushActivityItem({

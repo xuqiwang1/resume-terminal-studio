@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { watch } from "node:fs";
 import { readFile, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { actionCatalog } from "./actions.js";
 import runtimeModule from "./core/runtime.cjs";
@@ -92,6 +93,60 @@ const writeSse = (res, event, data) => {
 const currentRuntime = () => getRuntime();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function buildDocumentIdentity({ mode, fileName = "", historyFileName = "", title = "", activeResumePath: resumePath = activeResumePath }) {
+  const normalizedMode = ["template", "file", "history"].includes(mode) ? mode : "template";
+  const normalizedFileName = path.basename(String(fileName || ""));
+  const normalizedHistoryFileName = path.basename(String(historyFileName || ""));
+  return {
+    documentId: `${normalizedMode}:${normalizedFileName || normalizedHistoryFileName || "active"}`,
+    mode: normalizedMode,
+    fileName: normalizedFileName,
+    historyFileName: normalizedHistoryFileName,
+    title: String(title || ""),
+    activeResumePath: String(resumePath || activeResumePath)
+  };
+}
+
+function sameDocumentBinding(left, right) {
+  if (!left || !right) return false;
+  return (
+    left.documentId === right.documentId &&
+    left.mode === right.mode &&
+    left.fileName === right.fileName &&
+    left.historyFileName === right.historyFileName &&
+    left.activeResumePath === right.activeResumePath
+  );
+}
+
+async function syncRuntimeDocument(documentPatch, { forceRevisionBump = false } = {}) {
+  const currentContext = await readContextState();
+  const nextDocument = buildDocumentIdentity({
+    ...currentContext.document,
+    ...documentPatch
+  });
+  const currentRevision = Number.isInteger(currentContext?.document?.revision)
+    ? currentContext.document.revision
+    : 0;
+  const requestedRevision = Number(documentPatch?.revision);
+  const shouldBump = forceRevisionBump || !sameDocumentBinding(currentContext.document, nextDocument);
+  const revision = shouldBump
+    ? currentRevision + 1
+    : Number.isFinite(requestedRevision)
+      ? Math.max(0, Math.floor(requestedRevision))
+      : currentRevision;
+  const context = await writeContextState({
+    document: {
+      ...nextDocument,
+      revision
+    }
+  });
+  const result = currentRuntime().core.hydrateActiveDocument(context.document);
+  if (result?.clearedPendingPatch) {
+    broadcastPending();
+  }
+  return { context, document: context.document, clearedPendingPatch: !!result?.clearedPendingPatch };
+}
 
 const handleDirectPatch = async (res, patch) => {
   const baseResume = await readActiveResume();
@@ -282,12 +337,8 @@ const server = createServer(async (req, res) => {
   if (req.method === "POST" && requestPath === "/api/context/document") {
     try {
       const body = await readJson(req);
-      const context = await writeContextState({ document: body });
-      const result = currentRuntime().core.hydrateActiveDocument(context.document);
-      if (result?.clearedPendingPatch) {
-        broadcastPending();
-      }
-      return sendJson(res, 200, { ok: true, context, document: context.document });
+      const { context, document } = await syncRuntimeDocument(body, { forceRevisionBump: false });
+      return sendJson(res, 200, { ok: true, context, document });
     } catch (error) {
       return sendJson(res, 500, { error: error.message });
     }
@@ -368,8 +419,18 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       const result = await createNewResumeFromTemplate(body.reason || "new-resume");
       currentRuntime().core.hydrateResume(result.resume);
+      const synced = await syncRuntimeDocument(
+        {
+          mode: "template",
+          fileName: "",
+          historyFileName: "",
+          title: `${result.resume.name || "Your Name"}-resume`,
+          activeResumePath
+        },
+        { forceRevisionBump: true }
+      );
       await broadcastResume();
-      return sendJson(res, 200, { ok: true, ...result });
+      return sendJson(res, 200, { ok: true, ...result, context: synced.context, activeDocument: synced.document });
     } catch (error) {
       return sendJson(res, 500, { error: error.message });
     }
@@ -380,8 +441,18 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       const result = await restoreResumeArchive(body.fileName);
       currentRuntime().core.hydrateResume(result.resume);
+      const synced = await syncRuntimeDocument(
+        {
+          mode: "history",
+          fileName: "",
+          historyFileName: result.fileName,
+          title: result.fileName,
+          activeResumePath
+        },
+        { forceRevisionBump: true }
+      );
       await broadcastResume();
-      return sendJson(res, 200, { ok: true, ...result });
+      return sendJson(res, 200, { ok: true, ...result, context: synced.context, activeDocument: synced.document });
     } catch (error) {
       const status = /stale pending patch/i.test(error.message) ? 409 : 400;
       return sendJson(res, status, { error: error.message });
@@ -393,11 +464,23 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       const saved = await saveResumeDocument(body.resume, body.fileName);
       currentRuntime().core.setResume(saved.document.resume);
+      const synced = await syncRuntimeDocument(
+        {
+          mode: "file",
+          fileName: saved.fileName,
+          historyFileName: "",
+          title: saved.document?.meta?.title || saved.fileName,
+          activeResumePath
+        },
+        { forceRevisionBump: true }
+      );
       await broadcastResume();
       return sendJson(res, 200, {
         fileName: saved.fileName,
         fullPath: saved.fullPath,
-        document: saved.document
+        document: saved.document,
+        context: synced.context,
+        activeDocument: synced.document
       });
     } catch (error) {
       return sendJson(res, 500, { error: error.message });
@@ -409,8 +492,18 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       const opened = await openResumeDocument(body.fileName);
       currentRuntime().core.setResume(opened.document.resume);
+      const synced = await syncRuntimeDocument(
+        {
+          mode: "file",
+          fileName: opened.fileName,
+          historyFileName: "",
+          title: opened.document?.meta?.title || opened.fileName,
+          activeResumePath
+        },
+        { forceRevisionBump: true }
+      );
       await broadcastResume();
-      return sendJson(res, 200, opened);
+      return sendJson(res, 200, { ...opened, context: synced.context, activeDocument: synced.document });
     } catch (error) {
       return sendJson(res, 500, { error: error.message });
     }

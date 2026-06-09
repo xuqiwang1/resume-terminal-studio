@@ -73,15 +73,15 @@
 
 ### 当前文档绑定
 
-App 会在启动、保存、打开文件、新建模板、恢复历史时同步 `context-state.json.document`。该对象包含：
+Bridge 会在启动时 hydrate `context-state.json.document`，并在保存、打开文件、新建模板、恢复历史这些切文档请求里原子更新该对象。它包含：
 
 - `documentId`：右侧当前文档的稳定身份，例如 `template:active` 或 `file:xxx.rts.json`
-- `revision`：文档切换或重新同步时的版本号
+- `revision`：由 bridge 服务端维护的版本号；每次切文档或重新打开同一文档都会递增
 - `activeResumePath`：App 当前读写的 `active-resume.json` 绝对路径
 
-MCP 的 `get_context` 会返回 `activeDocument` 和 `workspaceDiagnostics`。`workspaceDiagnostics.aligned` 表示 MCP 的 `WORKSPACE_DIR` 与 App 当前文档路径是否一致。`propose_edit` / `propose_batch_edit` 在生成 pending 前会做同样校验；不一致时快速失败，不写 `pending-patch.json`。
+MCP 的 `get_context` 会返回 `activeDocument` 和 `workspaceDiagnostics`。`workspaceDiagnostics.aligned` 表示 MCP 的 `WORKSPACE_DIR` 与 App 当前文档路径是否一致。`propose_edit` / `propose_batch_edit` 在生成 pending 前会做同样校验；不一致时快速失败，不写 `pending-patch.json`。前端不再本地计算 `documentId/revision`，只消费 bridge 返回的最新 context。
 
-pending patch 创建时会保存 `documentId`、`revision`、`activeResumePath`。如果用户随后新建模板、打开历史记录或切换文件，core 会清空 stale pending；即使旧 pending 残留，确认阶段也会拒绝应用。
+pending patch 创建时会保存 `documentId`、`revision`、`activeResumePath`。如果用户随后新建模板、打开历史记录、切换文件，或重新打开同一文档，bridge/core 都会清空 stale pending；即使旧 pending 残留，确认阶段也会拒绝应用。
 
 ## 素材摄入：读放开，但先抽成干净文本
 

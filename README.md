@@ -110,7 +110,7 @@ Resume Studio 自带本地 MCP server：
 
 所有 AI 写入都必须走 `propose_edit` 或 `propose_batch_edit`。agent 负责读取素材并写好最终文案，Resume Studio 只暂存改动并展示 diff，不替 agent 二次改写；接受/拒绝只能在 APP 工作台里完成，MCP 和 `resume-agent` CLI 都不能替用户确认。
 
-Resume Studio 会把右侧当前文档身份写入 `context-state.json`，包括 `documentId`、`revision` 和 `activeResumePath`。MCP 在提案前会检查 App 当前文档路径和自己的 workspace 是否一致；不一致时直接报错，不生成 pending patch。pending patch 也会绑定创建时的 `documentId/revision`，用户新建模板、打开历史记录或切换文件后，旧 pending 会被清空或拒绝确认，避免把旧简历的 AI 改动应用到新简历上。
+Resume Studio 会把右侧当前文档身份写入 `context-state.json`，包括 `documentId`、`revision` 和 `activeResumePath`。这些字段现在由 bridge 服务端统一生成和递增：`/api/resume/new`、`/api/resume/history/open`、`/api/files/open`、`/api/files/save` 会在切换 active resume 的同一次请求里原子更新 document binding，并清掉 stale pending。MCP 在提案前会检查 App 当前文档路径和自己的 workspace 是否一致；不一致时直接报错，不生成 pending patch。pending patch 也会绑定创建时的 `documentId/revision`，用户新建模板、打开历史记录或切换文件后，旧 pending 会被清空或拒绝确认，避免把旧简历的 AI 改动应用到新简历上。
 
 ## 历史存档
 

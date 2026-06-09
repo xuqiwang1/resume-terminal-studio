@@ -126,9 +126,10 @@ agy
 1. 启动 Resume Studio 工作台（开发版用 `npm run dev:desktop`；安装版用 `open -a "Resume Studio"`）
 2. 在真终端运行你的 agent（如 `codex`、`claude` 或 `agy`）
 3. 让 agent 执行 `get_context` 工具——应返回当前文档、页码、选中字段、简历 JSON，并且 `workspaceDiagnostics.aligned` 应为 `true`
-4. 让 agent 执行 `get_materials` 工具——应返回 `materials/.extracted/` 里的抽取素材
-5. 让 agent 执行 `propose_edit({ sectionId: "experience", index: 0, content: "测试文案" })`，或用 `propose_batch_edit` 提交一个包含多项 change 的任务级草稿
-6. 观察工作台右下角弹出「AI 待确认改动」横幅——连接成功
+4. 在工作台里切换一次模板、历史或 `.rts.json` 文件后，再次执行 `get_context`——`activeDocument.revision` 应递增，旧 pending 不应继续可确认
+5. 让 agent 执行 `get_materials` 工具——应返回 `materials/.extracted/` 里的抽取素材
+6. 让 agent 执行 `propose_edit({ sectionId: "experience", index: 0, content: "测试文案" })`，或用 `propose_batch_edit` 提交一个包含多项 change 的任务级草稿
+7. 观察工作台右下角弹出「AI 待确认改动」横幅——连接成功
 
 ## 给 Agent 的启动口令
 
