@@ -14,6 +14,7 @@ import {
   activityStatePath,
   ensureActiveResume,
   ensureWorkspace,
+  historyDir,
   listResumeDocuments,
   listResumeArchives,
   migrateActiveResumeFile,
@@ -44,6 +45,7 @@ const pendingStreams = new Set();
 let activityOffset = 0;
 let startupPromise = null;
 let watchersAttached = false;
+let mutationQueue = Promise.resolve();
 
 const defaultResume = createDefaultResume();
 
@@ -93,6 +95,12 @@ const writeSse = (res, event, data) => {
 const currentRuntime = () => getRuntime();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function runSerialized(task) {
+  const result = mutationQueue.then(task, task);
+  mutationQueue = result.catch(() => {});
+  return result;
+}
 
 function buildDocumentIdentity({ mode, fileName = "", historyFileName = "", title = "", activeResumePath: resumePath = activeResumePath }) {
   const normalizedMode = ["template", "file", "history"].includes(mode) ? mode : "template";
@@ -146,6 +154,67 @@ async function syncRuntimeDocument(documentPatch, { forceRevisionBump = false } 
     broadcastPending();
   }
   return { context, document: context.document, clearedPendingPatch: !!result?.clearedPendingPatch };
+}
+
+function resumesEqual(left, right) {
+  return JSON.stringify(left || null) === JSON.stringify(right || null);
+}
+
+async function reconcileStartupDocumentBinding() {
+  const context = await readContextState();
+  const activeResume = await readActiveResume();
+  const document = context.document || {};
+
+  const bindTemplate = () =>
+    syncRuntimeDocument(
+      {
+        mode: "template",
+        fileName: "",
+        historyFileName: "",
+        title: `${activeResume.name || "Your Name"}-resume`,
+        activeResumePath
+      },
+      { forceRevisionBump: true }
+    );
+
+  if (document.activeResumePath !== activeResumePath) {
+    return bindTemplate();
+  }
+
+  if (document.mode === "file" && document.fileName) {
+    try {
+      const raw = await readFile(path.join(workspaceDir, path.basename(document.fileName)), "utf8");
+      const parsed = JSON.parse(raw);
+      if (!resumesEqual(parsed.resume, activeResume)) {
+        return bindTemplate();
+      }
+      currentRuntime().core.hydrateActiveDocument(context.document);
+      return { context, document: context.document, clearedPendingPatch: false };
+    } catch {
+      return bindTemplate();
+    }
+  }
+
+  if (document.mode === "history" && document.historyFileName) {
+    try {
+      const raw = await readFile(path.join(historyDir, path.basename(document.historyFileName)), "utf8");
+      const parsed = JSON.parse(raw);
+      if (!resumesEqual(parsed.resume, activeResume)) {
+        return bindTemplate();
+      }
+      currentRuntime().core.hydrateActiveDocument(context.document);
+      return { context, document: context.document, clearedPendingPatch: false };
+    } catch {
+      return bindTemplate();
+    }
+  }
+
+  if (document.mode === "template") {
+    currentRuntime().core.hydrateActiveDocument(context.document);
+    return { context, document: context.document, clearedPendingPatch: false };
+  }
+
+  return bindTemplate();
 }
 
 const handleDirectPatch = async (res, patch) => {
@@ -336,8 +405,10 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "POST" && requestPath === "/api/context/document") {
     try {
-      const body = await readJson(req);
-      const { context, document } = await syncRuntimeDocument(body, { forceRevisionBump: false });
+      const { context, document } = await runSerialized(async () => {
+        const body = await readJson(req);
+        return syncRuntimeDocument(body, { forceRevisionBump: false });
+      });
       return sendJson(res, 200, { ok: true, context, document });
     } catch (error) {
       return sendJson(res, 500, { error: error.message });
@@ -416,19 +487,22 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "POST" && requestPath === "/api/resume/new") {
     try {
-      const body = await readJson(req);
-      const result = await createNewResumeFromTemplate(body.reason || "new-resume");
-      currentRuntime().core.hydrateResume(result.resume);
-      const synced = await syncRuntimeDocument(
-        {
-          mode: "template",
-          fileName: "",
-          historyFileName: "",
-          title: `${result.resume.name || "Your Name"}-resume`,
-          activeResumePath
-        },
-        { forceRevisionBump: true }
-      );
+      const { result, synced } = await runSerialized(async () => {
+        const body = await readJson(req);
+        const result = await createNewResumeFromTemplate(body.reason || "new-resume");
+        currentRuntime().core.hydrateResume(result.resume);
+        const synced = await syncRuntimeDocument(
+          {
+            mode: "template",
+            fileName: "",
+            historyFileName: "",
+            title: `${result.resume.name || "Your Name"}-resume`,
+            activeResumePath
+          },
+          { forceRevisionBump: true }
+        );
+        return { result, synced };
+      });
       await broadcastResume();
       return sendJson(res, 200, { ok: true, ...result, context: synced.context, activeDocument: synced.document });
     } catch (error) {
@@ -438,19 +512,22 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "POST" && requestPath === "/api/resume/history/open") {
     try {
-      const body = await readJson(req);
-      const result = await restoreResumeArchive(body.fileName);
-      currentRuntime().core.hydrateResume(result.resume);
-      const synced = await syncRuntimeDocument(
-        {
-          mode: "history",
-          fileName: "",
-          historyFileName: result.fileName,
-          title: result.fileName,
-          activeResumePath
-        },
-        { forceRevisionBump: true }
-      );
+      const { result, synced } = await runSerialized(async () => {
+        const body = await readJson(req);
+        const result = await restoreResumeArchive(body.fileName);
+        currentRuntime().core.hydrateResume(result.resume);
+        const synced = await syncRuntimeDocument(
+          {
+            mode: "history",
+            fileName: "",
+            historyFileName: result.fileName,
+            title: result.fileName,
+            activeResumePath
+          },
+          { forceRevisionBump: true }
+        );
+        return { result, synced };
+      });
       await broadcastResume();
       return sendJson(res, 200, { ok: true, ...result, context: synced.context, activeDocument: synced.document });
     } catch (error) {
@@ -461,19 +538,22 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "POST" && requestPath === "/api/files/save") {
     try {
-      const body = await readJson(req);
-      const saved = await saveResumeDocument(body.resume, body.fileName);
-      currentRuntime().core.setResume(saved.document.resume);
-      const synced = await syncRuntimeDocument(
-        {
-          mode: "file",
-          fileName: saved.fileName,
-          historyFileName: "",
-          title: saved.document?.meta?.title || saved.fileName,
-          activeResumePath
-        },
-        { forceRevisionBump: true }
-      );
+      const { saved, synced } = await runSerialized(async () => {
+        const body = await readJson(req);
+        const saved = await saveResumeDocument(body.resume, body.fileName);
+        currentRuntime().core.setResume(saved.document.resume);
+        const synced = await syncRuntimeDocument(
+          {
+            mode: "file",
+            fileName: saved.fileName,
+            historyFileName: "",
+            title: saved.document?.meta?.title || saved.fileName,
+            activeResumePath
+          },
+          { forceRevisionBump: true }
+        );
+        return { saved, synced };
+      });
       await broadcastResume();
       return sendJson(res, 200, {
         fileName: saved.fileName,
@@ -489,19 +569,22 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "POST" && requestPath === "/api/files/open") {
     try {
-      const body = await readJson(req);
-      const opened = await openResumeDocument(body.fileName);
-      currentRuntime().core.setResume(opened.document.resume);
-      const synced = await syncRuntimeDocument(
-        {
-          mode: "file",
-          fileName: opened.fileName,
-          historyFileName: "",
-          title: opened.document?.meta?.title || opened.fileName,
-          activeResumePath
-        },
-        { forceRevisionBump: true }
-      );
+      const { opened, synced } = await runSerialized(async () => {
+        const body = await readJson(req);
+        const opened = await openResumeDocument(body.fileName);
+        currentRuntime().core.setResume(opened.document.resume);
+        const synced = await syncRuntimeDocument(
+          {
+            mode: "file",
+            fileName: opened.fileName,
+            historyFileName: "",
+            title: opened.document?.meta?.title || opened.fileName,
+            activeResumePath
+          },
+          { forceRevisionBump: true }
+        );
+        return { opened, synced };
+      });
       await broadcastResume();
       return sendJson(res, 200, { ...opened, context: synced.context, activeDocument: synced.document });
     } catch (error) {
@@ -560,21 +643,23 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "POST" && requestPath === "/api/patch/confirm") {
     try {
-      const body = await readJson(req);
-      const { core, persistence } = currentRuntime();
-      const documentResult = await hydrateRuntimeDocumentFromContext();
-      if (documentResult?.clearedPendingPatch) {
-        broadcastPending();
-        return sendJson(res, 409, { error: "Stale pending patch: active document changed" });
-      }
-      core.hydratePendingPatch(persistence.loadPendingPatch());
-      core.confirmPendingPatch({
-        pendingId: body.pendingId
+      const result = await runSerialized(async () => {
+        const body = await readJson(req);
+        const { core, persistence } = currentRuntime();
+        const documentResult = await hydrateRuntimeDocumentFromContext();
+        if (documentResult?.clearedPendingPatch) {
+          broadcastPending();
+          throw new Error("Stale pending patch: active document changed");
+        }
+        core.hydratePendingPatch(persistence.loadPendingPatch());
+        core.confirmPendingPatch({
+          pendingId: body.pendingId
+        });
+        return {
+          patch: null,
+          resume: core.getResume()
+        };
       });
-      const result = {
-        patch: null,
-        resume: core.getResume()
-      };
       await broadcastResume();
       broadcastPending();
       return sendJson(res, 200, { ok: true, patch: result.patch, resume: result.resume });
@@ -586,18 +671,20 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "POST" && requestPath === "/api/patch/reject") {
     try {
-      const body = await readJson(req);
-      const { core, persistence } = currentRuntime();
-      const documentResult = await hydrateRuntimeDocumentFromContext();
-      if (documentResult?.clearedPendingPatch) {
-        broadcastPending();
-        return sendJson(res, 409, { error: "Stale pending patch: active document changed" });
-      }
-      core.hydratePendingPatch(persistence.loadPendingPatch());
-      core.rejectPendingPatch({
-        pendingId: body.pendingId
+      const result = await runSerialized(async () => {
+        const body = await readJson(req);
+        const { core, persistence } = currentRuntime();
+        const documentResult = await hydrateRuntimeDocumentFromContext();
+        if (documentResult?.clearedPendingPatch) {
+          broadcastPending();
+          throw new Error("Stale pending patch: active document changed");
+        }
+        core.hydratePendingPatch(persistence.loadPendingPatch());
+        core.rejectPendingPatch({
+          pendingId: body.pendingId
+        });
+        return { rejected: true };
       });
-      const result = { rejected: true };
       broadcastPending();
       return sendJson(res, 200, { ok: true, rejected: result.rejected });
     } catch (error) {
@@ -738,7 +825,7 @@ export function startBridgeServer(port = configuredPort) {
       workspaceDir,
       resume: await readActiveResume()
     });
-    runtime.core.hydrateActiveDocument((await readContextState()).document);
+    await reconcileStartupDocumentBinding();
 
     try {
       await readFile(pendingPatchPath, "utf8");
