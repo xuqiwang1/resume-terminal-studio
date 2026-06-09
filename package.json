@@ -21,7 +21,8 @@
     "build": "vite build",
     "site:build": "node site/scripts/build.mjs",
     "preview": "vite preview",
-    "build:desktop": "vite build && electron-builder"
+    "build:desktop": "vite build && electron-builder",
+    "install:desktop": "node tools/install-desktop.mjs"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",

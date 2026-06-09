@@ -50,6 +50,12 @@ npm run dev:bridge
 npm run build:desktop
 ```
 
+构建并安装到 `/Applications`（同时清理 `release/mac-arm64/Resume Studio.app`，避免搜索里出现两份 APP）：
+
+```bash
+npm run install:desktop
+```
+
 运行测试：
 
 ```bash
