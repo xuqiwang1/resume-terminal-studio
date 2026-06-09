@@ -187,6 +187,11 @@ const broadcastPending = () => {
   pendingStreams.forEach((res) => writeSse(res, "pending", { pending: pending || null }));
 };
 
+const hydrateRuntimeDocumentFromContext = async () => {
+  const context = await readContextState();
+  return currentRuntime().core.hydrateActiveDocument(context.document);
+};
+
 const readActivityState = async () => {
   try {
     const raw = await readFile(activityStatePath, "utf8");
@@ -278,7 +283,11 @@ const server = createServer(async (req, res) => {
     try {
       const body = await readJson(req);
       const context = await writeContextState({ document: body });
-      return sendJson(res, 200, { ok: true, context });
+      const result = currentRuntime().core.hydrateActiveDocument(context.document);
+      if (result?.clearedPendingPatch) {
+        broadcastPending();
+      }
+      return sendJson(res, 200, { ok: true, context, document: context.document });
     } catch (error) {
       return sendJson(res, 500, { error: error.message });
     }
@@ -374,7 +383,8 @@ const server = createServer(async (req, res) => {
       await broadcastResume();
       return sendJson(res, 200, { ok: true, ...result });
     } catch (error) {
-      return sendJson(res, 400, { error: error.message });
+      const status = /stale pending patch/i.test(error.message) ? 409 : 400;
+      return sendJson(res, status, { error: error.message });
     }
   }
 
@@ -459,6 +469,11 @@ const server = createServer(async (req, res) => {
     try {
       const body = await readJson(req);
       const { core, persistence } = currentRuntime();
+      const documentResult = await hydrateRuntimeDocumentFromContext();
+      if (documentResult?.clearedPendingPatch) {
+        broadcastPending();
+        return sendJson(res, 409, { error: "Stale pending patch: active document changed" });
+      }
       core.hydratePendingPatch(persistence.loadPendingPatch());
       core.confirmPendingPatch({
         pendingId: body.pendingId
@@ -471,7 +486,8 @@ const server = createServer(async (req, res) => {
       broadcastPending();
       return sendJson(res, 200, { ok: true, patch: result.patch, resume: result.resume });
     } catch (error) {
-      return sendJson(res, 400, { error: error.message });
+      const status = /stale pending patch/i.test(error.message) ? 409 : 400;
+      return sendJson(res, status, { error: error.message });
     }
   }
 
@@ -479,6 +495,11 @@ const server = createServer(async (req, res) => {
     try {
       const body = await readJson(req);
       const { core, persistence } = currentRuntime();
+      const documentResult = await hydrateRuntimeDocumentFromContext();
+      if (documentResult?.clearedPendingPatch) {
+        broadcastPending();
+        return sendJson(res, 409, { error: "Stale pending patch: active document changed" });
+      }
       core.hydratePendingPatch(persistence.loadPendingPatch());
       core.rejectPendingPatch({
         pendingId: body.pendingId
@@ -487,7 +508,8 @@ const server = createServer(async (req, res) => {
       broadcastPending();
       return sendJson(res, 200, { ok: true, rejected: result.rejected });
     } catch (error) {
-      return sendJson(res, 400, { error: error.message });
+      const status = /stale pending patch/i.test(error.message) ? 409 : 400;
+      return sendJson(res, status, { error: error.message });
     }
   }
 
@@ -623,6 +645,7 @@ export function startBridgeServer(port = configuredPort) {
       workspaceDir,
       resume: await readActiveResume()
     });
+    runtime.core.hydrateActiveDocument((await readContextState()).document);
 
     try {
       await readFile(pendingPatchPath, "utf8");

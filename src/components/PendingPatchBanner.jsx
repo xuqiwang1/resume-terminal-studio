@@ -1,6 +1,7 @@
 import { computeTextDiff } from "../lib/textDiff";
 
 const SECTION_LABELS = {
+  name: "姓名",
   summary: "个人总结",
   experience: "工作经历",
   projects: "项目经历",

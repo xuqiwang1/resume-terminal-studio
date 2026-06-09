@@ -99,16 +99,18 @@ Resume Studio 自带本地 MCP server：
 
 | 工具 | 作用 |
 |---|---|
-| `get_context` | 读取当前文档、页码、选中字段、简历和 pending patch |
+| `get_context` | 读取当前文档、页码、选中字段、简历、pending patch 和 workspace 诊断 |
 | `get_resume` | 读取当前简历和工作区路径 |
 | `get_materials` | 一次读取已抽取素材，避免 agent 自己慢慢找文件 |
-| `propose_edit` | 提交一项待确认改动，包含 title/contact/正文 |
+| `propose_edit` | 提交一项待确认改动，包含 name/title/contact/正文 |
 | `propose_batch_edit` | 一次提交一组结构化待确认改动，适合教育/项目/多字段改写 |
 | `get_pending_patch` | 查看当前待确认项 |
 | `get_activity` | 读取最近活动 |
 | `get_selection` | 读取用户当前选中的字段 |
 
 所有 AI 写入都必须走 `propose_edit` 或 `propose_batch_edit`。agent 负责读取素材并写好最终文案，Resume Studio 只暂存改动并展示 diff，不替 agent 二次改写；接受/拒绝只能在 APP 工作台里完成，MCP 和 `resume-agent` CLI 都不能替用户确认。
+
+Resume Studio 会把右侧当前文档身份写入 `context-state.json`，包括 `documentId`、`revision` 和 `activeResumePath`。MCP 在提案前会检查 App 当前文档路径和自己的 workspace 是否一致；不一致时直接报错，不生成 pending patch。pending patch 也会绑定创建时的 `documentId/revision`，用户新建模板、打开历史记录或切换文件后，旧 pending 会被清空或拒绝确认，避免把旧简历的 AI 改动应用到新简历上。
 
 ## 历史存档
 
@@ -172,7 +174,7 @@ agy
 1. 打开 Resume Studio。
 2. 把素材放进工作区 `materials/`，运行 `npm run ingest`。
 3. 在终端启动 Codex、Claude Code 或 `agy`。
-4. 让 agent 先调用 `get_context`，再调用 `get_materials`。
+4. 让 agent 先调用 `get_context`，确认 `workspaceDiagnostics.aligned` 为 `true`，再调用 `get_materials`。
 5. agent 写好文案后，单点改动调用 `propose_edit`，成组任务调用 `propose_batch_edit`。
 6. 你在工作台确认或拒绝改动。
 

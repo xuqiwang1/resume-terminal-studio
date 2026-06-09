@@ -35,13 +35,14 @@ export function patchFieldId(sectionId, index) {
   if (sectionId === "summary") return "summary.text";
   if (sectionId === "experience") return `experience.${index ?? 0}.details`;
   if (sectionId === "projects") return `projects.${index ?? 0}.details`;
+  if (sectionId === "name") return "header.name";
   if (sectionId === "title") return "header.title";
   if (sectionId === "contact") return "header.contact";
   return null;
 }
 
 export function normalizePendingSection(sectionId) {
-  if (sectionId === "title" || sectionId === "contact") return "summary";
+  if (sectionId === "name" || sectionId === "title" || sectionId === "contact") return "summary";
   return sectionId || null;
 }
 

@@ -24,7 +24,15 @@ const newResumeTemplate = createDefaultResume();
 const DEFAULT_CONTEXT_STATE = {
   version: 1,
   updatedAt: null,
-  document: { mode: "template", fileName: "", historyFileName: "", title: "Your Name-resume" },
+  document: {
+    documentId: "template:active",
+    mode: "template",
+    fileName: "",
+    historyFileName: "",
+    title: "Your Name-resume",
+    activeResumePath: "",
+    revision: 0
+  },
   view: { visiblePage: 1, pageCount: 1, scrollTop: 0, zoom: "width", scale: 1 },
   selection: {
     fieldId: null,
@@ -87,6 +95,11 @@ function clampTextPreview(value) {
   return String(value || "").slice(0, 400);
 }
 
+function normalizeRevision(value) {
+  const revision = Number(value);
+  return Number.isFinite(revision) && revision >= 0 ? Math.floor(revision) : 0;
+}
+
 function normalizeContextState(input = {}) {
   const current = {
     ...DEFAULT_CONTEXT_STATE,
@@ -108,10 +121,13 @@ function normalizeContextState(input = {}) {
     version: 1,
     updatedAt: new Date().toISOString(),
     document: {
+      documentId: String(current.document.documentId || `${mode}:${current.document.fileName || current.document.historyFileName || "active"}`).slice(0, 200),
       mode,
       fileName: safeBaseName(current.document.fileName),
       historyFileName: safeBaseName(current.document.historyFileName),
-      title: String(current.document.title || "")
+      title: String(current.document.title || ""),
+      activeResumePath: String(current.document.activeResumePath || activeResumePath),
+      revision: normalizeRevision(current.document.revision)
     },
     view: {
       visiblePage: Math.max(1, Number(current.view.visiblePage) || 1),

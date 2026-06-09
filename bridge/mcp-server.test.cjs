@@ -24,7 +24,15 @@ fs.writeFileSync(
   JSON.stringify({
     version: 1,
     updatedAt: new Date().toISOString(),
-    document: { mode: "template", fileName: "", historyFileName: "", title: "Demo" },
+    document: {
+      documentId: "template:active",
+      mode: "template",
+      fileName: "",
+      historyFileName: "",
+      title: "Demo",
+      activeResumePath: path.join(tmp, "active-resume.json"),
+      revision: 9
+    },
     view: { visiblePage: 1, pageCount: 1, scrollTop: 0, zoom: "width", scale: 1 },
     selection: {
       fieldId: "experience.0.details",
@@ -123,12 +131,28 @@ function check(name, cond) {
     const contextText = context.result?.content?.[0]?.text || "";
     check("get_context returns selected field", contextText.includes("experience.0.details"));
     check("get_context returns visible page", contextText.includes('"visiblePage": 1'));
+    check("context includes workspace diagnostics", contextText.includes('"workspaceDiagnostics"'));
+    check("context includes active document", contextText.includes('"activeDocument"'));
+    check("context includes active document id", contextText.includes('"documentId": "template:active"'));
+    check("context reports aligned workspace", contextText.includes('"aligned": true'));
 
     send(5, "resources/read", { uri: "resume://context" });
     const contextResource = await waitFor(5);
     check("resume://context resource returns context", JSON.stringify(contextResource).includes("Built a local-first workflow"));
 
     send(6, "tools/call", {
+      name: "propose_edit",
+      arguments: {
+        sectionId: "name",
+        content: "许起旺"
+      }
+    });
+    const nameResponse = await waitFor(6);
+    const nameText = nameResponse.result?.content?.[0]?.text || "";
+    check("propose_edit supports name section", nameText.includes('"sectionId": "name"'));
+    check("propose_edit for name returns pending confirmation", nameText.includes('"status": "pending_confirmation"'));
+
+    send(7, "tools/call", {
       name: "propose_batch_edit",
       arguments: {
         title: "Fill education",
@@ -149,11 +173,46 @@ function check(name, cond) {
         ]
       }
     });
-    const batchResponse = await waitFor(6);
+    const batchResponse = await waitFor(7);
     const batchText = batchResponse.result?.content?.[0]?.text || "";
     check("propose_batch_edit returns pending confirmation", batchText.includes('"status": "pending_confirmation"'));
     check("propose_batch_edit returns batch kind", batchText.includes('"kind": "batch"'));
     check("propose_batch_edit returns title", batchText.includes('"title": "Fill education"'));
+    check("batch response returns change count", batchText.includes('"changeCount": 1'));
+    check("batch response includes sections", batchText.includes('"sections"'));
+    check("batch response includes duration", batchText.includes('"durationMs"'));
+    check("batch response does not echo full changes", !batchText.includes('"changes": ['));
+    check("batch response omits normalized before/after payloads", !batchText.includes('"before": {'));
+
+    send(8, "tools/call", {
+      name: "propose_batch_edit",
+      arguments: {
+        title: "Bad batch",
+        changes: [{ operation: "replace_field", sectionId: "title", value: "x" }]
+      }
+    });
+    const invalidBatch = await waitFor(8);
+    check("invalid batch returns request-scoped error id", invalidBatch.id === 8);
+    check("invalid batch returns schema error text", invalidBatch.error?.message === "title replace_field requires field");
+
+    fs.writeFileSync(
+      path.join(tmp, "context-state.json"),
+      JSON.stringify({ version: 1, document: { mode: "template", title: "Missing binding" } }, null, 2),
+      "utf8"
+    );
+    send(9, "tools/call", {
+      name: "propose_edit",
+      arguments: {
+        sectionId: "summary",
+        content: "Should fail without active document binding"
+      }
+    });
+    const missingContext = await waitFor(9);
+    check("missing active document returns request-scoped error id", missingContext.id === 9);
+    check(
+      "missing active document returns explicit error",
+      missingContext.error?.message.includes("active document context is missing")
+    );
   } finally {
     child.kill();
     fs.rmSync(tmp, { recursive: true, force: true });

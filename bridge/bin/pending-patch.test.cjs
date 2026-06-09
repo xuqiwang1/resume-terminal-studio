@@ -58,6 +58,7 @@ const SUMMARY_TEXT = "Agent 写好的全新个人总结：聚焦 AI 产品方向
 const before = JSON.stringify(diskResume());
 const { pending } = engine.proposeEdit({ sectionId: "summary", content: SUMMARY_TEXT });
 check("proposeEdit returns a pendingId", !!pending.id);
+check("proposeEdit binds pending to an active document", !!pending.documentId && Number.isInteger(pending.revision) && !!pending.activeResumePath);
 check("proposeEdit stores agent content verbatim", pending.after === SUMMARY_TEXT);
 check("proposeEdit does NOT modify active-resume.json", JSON.stringify(diskResume()) === before);
 check("pending slot is populated", !!engine.readPendingPatch());

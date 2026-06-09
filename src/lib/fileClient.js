@@ -98,6 +98,12 @@ export async function fetchActivityState() {
   return response.json();
 }
 
+export async function fetchPendingPatch() {
+  const response = await fetch(apiUrl("/api/patch/pending"), { headers: authHeaders() });
+  if (!response.ok) throw new Error("Failed to fetch pending patch");
+  return response.json();
+}
+
 export function subscribeActivityUpdates(handlers = {}) {
   const source = new EventSource(eventSourceUrl("/api/activity/stream"));
   source.addEventListener("state", (event) => {
@@ -207,7 +213,10 @@ export async function confirmPendingPatch(pendingId) {
     headers: jsonHeaders(),
     body: JSON.stringify({ pendingId })
   });
-  if (!response.ok) throw new Error("Failed to confirm patch");
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Failed to confirm patch");
+  }
   return response.json();
 }
 
@@ -217,6 +226,9 @@ export async function rejectPendingPatch(pendingId) {
     headers: jsonHeaders(),
     body: JSON.stringify({ pendingId })
   });
-  if (!response.ok) throw new Error("Failed to reject patch");
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Failed to reject patch");
+  }
   return response.json();
 }
