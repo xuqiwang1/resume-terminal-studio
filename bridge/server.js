@@ -366,7 +366,11 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "GET" && requestPath === "/api/resume/active") {
     try {
-      const resume = currentRuntime().core.getResume();
+      const diskResume = await readActiveResumeRobust();
+      if (diskResume) {
+        currentRuntime().core.hydrateResume(diskResume);
+      }
+      const resume = diskResume || currentRuntime().core.getResume();
       return sendJson(res, 200, { resume, activeResumePath });
     } catch (error) {
       return sendJson(res, 500, { error: error.message });

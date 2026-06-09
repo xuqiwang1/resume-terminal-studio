@@ -23,6 +23,7 @@ check("project role is a first-class selectable field", template.includes('field
 check("project date is a first-class selectable field", template.includes('fieldId("projects", index, "date")'));
 check("project details stay in the structured body", template.includes("pro-project-body"));
 check("projects share the three-column alignment model", css.includes(".pro-project-head") && css.includes("grid-template-columns: max-content 1fr max-content"));
+check("professional header participates in active section state", template.includes('sectionClass(activeSectionId, workingSection, "header")'));
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);

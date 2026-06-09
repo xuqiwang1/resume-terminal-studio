@@ -342,14 +342,29 @@ core.rejectPendingPatch({ sessionId: "session-1", pendingId: rejectedBatch.id })
 assert.equal(core.getResume().summary, "");
 assert.equal(core.getResume().skills[0].content, "old content");
 
+const scalarBatch = core.proposeBatchEdit({
+  sessionId: "session-1",
+  title: "Rewrite scalar fields",
+  changes: [
+    { operation: "replace_field", sectionId: "title", value: "New title" },
+    { operation: "replace_field", sectionId: "contact", value: "new@example.com" }
+  ]
+});
+assert.equal(scalarBatch.changes[0].sectionId, "title");
+assert.equal(scalarBatch.changes[0].before, "");
+assert.equal(scalarBatch.changes[0].after, "New title");
+core.confirmPendingPatch({ sessionId: "session-1", pendingId: scalarBatch.id });
+assert.equal(core.getResume().title, "New title");
+assert.equal(core.getResume().contact, "new@example.com");
+
 assert.throws(
   () =>
     core.proposeBatchEdit({
       sessionId: "session-1",
-      title: "Bad batch",
-      changes: [{ operation: "replace_field", sectionId: "title", value: "x" }]
+      title: "Bad scalar batch",
+      changes: [{ operation: "replace_field", sectionId: "title", index: 0, value: "x" }]
     }),
-  /replace_field requires field/i
+  /title replace_field does not accept index/i
 );
 
 assert.throws(

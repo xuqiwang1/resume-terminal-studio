@@ -58,6 +58,7 @@ function changeLabel(change) {
   if (change.operation === "append_item") return `新增${sectionLabel}`;
   if (change.operation === "replace_item") return `替换${sectionLabel}第 ${Number(change.index || 0) + 1} 条`;
   if (change.operation === "replace_field") {
+    if (change.index == null) return `修改${sectionLabel}`;
     const fieldLabel = FIELD_LABELS[change.field] || change.field;
     return `修改${sectionLabel}第 ${Number(change.index || 0) + 1} 条${fieldLabel}`;
   }

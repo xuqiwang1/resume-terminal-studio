@@ -23,6 +23,7 @@ check("batch view renders task title", source.includes("pending.title"));
 check("batch view groups changes", source.includes("groupedChanges"));
 check("batch view renders append label", source.includes("append_item"));
 check("batch view renders replace label", source.includes("replace_item"));
+check("scalar replace_field label omits fake item index", source.includes("change.index == null") && source.includes("修改${sectionLabel}"));
 check("css defines batch group layout", css.includes(".pending-batch-group"));
 check("css defines batch change rows", css.includes(".pending-batch-change"));
 

@@ -14,6 +14,8 @@ const DEFAULT_FIELD = {
   projects: "details"
 };
 
+const SCALAR_SECTIONS = ["name", "summary", "title", "contact"];
+
 function cloneResume(resume) {
   return JSON.parse(JSON.stringify(resume || {}));
 }
@@ -114,7 +116,7 @@ function validateSinglePatchInput(resume, { sectionId, index = 0, field, content
 }
 
 function applySinglePatch(resume, patch) {
-  if (patch.sectionId === "name" || patch.sectionId === "summary" || patch.sectionId === "title" || patch.sectionId === "contact") {
+  if (SCALAR_SECTIONS.includes(patch.sectionId)) {
     return { ...resume, [patch.sectionId]: patch.after };
   }
 
@@ -144,7 +146,7 @@ function applySinglePatch(resume, patch) {
 }
 
 function applyNormalizedBatchChange(resume, change) {
-  if (change.operation === "replace_section" && ["name", "summary", "title", "contact"].includes(change.sectionId)) {
+  if ((change.operation === "replace_section" || change.operation === "replace_field") && SCALAR_SECTIONS.includes(change.sectionId)) {
     return { ...resume, [change.sectionId]: change.after };
   }
 
@@ -207,7 +209,7 @@ function normalizeBatchChange(resume, change) {
   if (!sectionId) throw new Error("Batch change requires sectionId");
 
   if (operation === "replace_section") {
-    if (["name", "summary", "title", "contact"].includes(sectionId)) {
+    if (SCALAR_SECTIONS.includes(sectionId)) {
       if (typeof change.value !== "string") {
         throw new Error(`${sectionId} replace_section requires string value`);
       }
@@ -238,6 +240,20 @@ function normalizeBatchChange(resume, change) {
   }
 
   if (operation === "replace_field") {
+    if (SCALAR_SECTIONS.includes(sectionId)) {
+      if (typeof change.value !== "string") {
+        throw new Error(`${sectionId} replace_field requires string value`);
+      }
+      if ("index" in change && change.index != null) {
+        throw new Error(`${sectionId} replace_field does not accept index`);
+      }
+      return {
+        operation,
+        sectionId,
+        before: resume?.[sectionId] || "",
+        after: change.value
+      };
+    }
     if (typeof change.field !== "string" || !change.field) {
       throw new Error(`${sectionId} replace_field requires field`);
     }

@@ -35,7 +35,7 @@ const toolDefinitions = [
   },
   {
     name: "propose_edit",
-    description: "Propose a finished edit to one resume field. First call get_context and get_materials, then WRITE the final polished text yourself and submit it here. This does NOT change the resume directly: it stages a pending patch that only the user can accept or reject in the Resume Studio workbench.\n\nSections:\n- name / title / contact / summary: plain text, no index/field.\n- experience / projects: arrays; use index + field (default 'details').\n- education: array of {school,degree,major,date,tag}; use index + field (one of school/degree/major/date/tag).\n- skills: array of {category,content}; use index + field (one of category/content; default 'content').\nFor structured arrays, proposing with index 0 onto an EMPTY array appends a new item.",
+    description: "Propose a finished edit to one resume field. First call get_context and get_materials, then WRITE the final polished text yourself and submit it here. This does NOT change the resume directly: it stages a pending patch that only the user can accept or reject in the Resume Studio workbench.\n\nSections:\n- name / title / contact / summary: plain text, no index/field.\n- experience / projects: arrays; use index + field (default 'details'). The details field is rendered as newline-separated structured text; keep stage lines and labeled lines on separate lines, e.g. `阶段｜2024.01-2024.03` or `【成果】...`.\n- education: array of {school,degree,major,date,tag}; use index + field (one of school/degree/major/date/tag).\n- skills: array of {category,content}; use index + field (one of category/content; default 'content').\nFor structured arrays, proposing with index 0 onto an EMPTY array appends a new item.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -69,7 +69,7 @@ const toolDefinitions = [
   },
   {
     name: "propose_batch_edit",
-    description: "Propose one coherent task with multiple structured resume changes. Use this when a meaningful edit spans multiple fields or items, such as filling education, rewriting one project entry, or updating summary plus one skill. This stages one batch pending patch for the user to accept or reject once in the app.",
+    description: "Propose one coherent task with multiple structured resume changes. Use this when a meaningful edit spans multiple fields or items, such as filling education, rewriting one project entry, or updating summary plus one skill. This stages one batch pending patch for the user to accept or reject once in the app.\n\nBatch shape contract:\n- name / title / contact / summary are scalar fields: use replace_field or replace_section with a string value; do not pass index or field.\n- education / skills / experience / projects are item arrays: use replace_field with index + field for one sub-field, replace_item with index + object for a whole item, or append_item with object value.\n- experience/projects details values are newline-separated structured text rendered line-by-line by the resume template; keep labeled content like `【成果】...` and stage lines like `阶段｜2024.01-2024.03` on their own lines.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -105,10 +105,11 @@ const toolDefinitions = [
                 minimum: 0
               },
               field: {
-                type: "string"
+                type: "string",
+                description: "Required for array replace_field changes; omit for scalar sections name/title/contact/summary."
               },
               value: {
-                description: "String for text replacements, object for item replacements/appends."
+                description: "String for scalar and sub-field replacements; object for item replacements/appends."
               }
             }
           }

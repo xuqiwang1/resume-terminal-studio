@@ -120,6 +120,17 @@ try {
   const pendingAfterStartup = await fetch(`${baseUrl}/api/patch/pending`).then((res) => res.json());
   assert.equal(pendingAfterStartup.pending, null);
 
+  const externallyEditedResume = {
+    ...sourceResume,
+    name: "Externally Edited",
+    skills: [{ category: "External", content: "disk is authoritative" }]
+  };
+  fs.writeFileSync(activeResumePath, JSON.stringify(externallyEditedResume, null, 2), "utf8");
+  const activeAfterExternalEdit = await fetch(`${baseUrl}/api/resume/active`).then((res) => res.json());
+  assert.equal(activeAfterExternalEdit.resume.name, "Externally Edited");
+  assert.deepEqual(activeAfterExternalEdit.resume.skills, externallyEditedResume.skills);
+  fs.writeFileSync(activeResumePath, JSON.stringify(sourceResume, null, 2), "utf8");
+
   const firstOpen = await postJson(baseUrl, "/api/files/open", { fileName: "saved-resume.rts.json" });
   assert.equal(firstOpen.response.status, 200);
   assert.equal(firstOpen.payload.context.document.documentId, "file:saved-resume.rts.json");

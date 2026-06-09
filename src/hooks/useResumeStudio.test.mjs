@@ -12,6 +12,7 @@ function check(name, cond) {
 const source = fs.readFileSync(new URL("./useResumeStudio.js", import.meta.url), "utf8");
 
 check("hook computes batch section target", source.includes("getPendingPatchPrimarySection"));
+check("hook normalizes pending section target", source.includes("normalizePendingSection"));
 check("hook computes batch activity label", source.includes("describePendingPatch"));
 check("hook avoids sectionId-only confirm text", source.includes("已接受 AI 改动并写入"));
 check("hook imports fetchPendingPatch", source.includes("fetchPendingPatch"));
@@ -23,6 +24,9 @@ check("hook preserves existing startup document", source.includes("sameActivePat
 check("hook does not compute documentId client-side", !source.includes("const documentId ="));
 check("hook does not compute revision client-side", !source.includes("revision: documentId.length"));
 check("hook syncs activeResumePath", source.includes("activeResumePath"));
+check("hook keeps header selection distinct from summary", !source.includes('sectionId === "header" ? "summary" : sectionId'));
+check("hook maps intent targets through pending section normalization", source.includes("setWorkingSection(normalizePendingSection(event.target))"));
+check("hook maps patch targets through pending section normalization", source.includes("const resolvedSection = normalizePendingSection(event.sectionId)"));
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);

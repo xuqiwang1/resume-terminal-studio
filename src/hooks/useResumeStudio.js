@@ -6,6 +6,7 @@ import {
   describePendingPatch,
   FIELD_LABELS,
   getPendingPatchPrimarySection,
+  normalizePendingSection,
   parseFieldId,
   patchFieldId,
   SECTION_LABELS,
@@ -145,7 +146,7 @@ export function useResumeStudio() {
     setSelectedField(fid);
     const parsed = parseFieldId(fid);
     const sectionId = parsed.sectionId || sectionIdFromFieldId(fid);
-    if (sectionId) setActiveSectionId(sectionId === "header" ? "summary" : sectionId);
+    if (sectionId) setActiveSectionId(sectionId);
     const selection = {
       fieldId: fid,
       sectionId: parsed.sectionId,
@@ -332,9 +333,7 @@ export function useResumeStudio() {
           });
         }
         if (event.type === "intent") {
-          setWorkingSection(
-            event.target === "title" || event.target === "contact" ? "summary" : event.target
-          );
+          setWorkingSection(normalizePendingSection(event.target));
           pushActivityItem({
             label: "Intent",
             state: "Parsed",
@@ -351,10 +350,7 @@ export function useResumeStudio() {
         if (event.type === "patch") {
           setDraftState(null);
           setDiff({ before: event.before || "", after: event.after || "" });
-          const resolvedSection =
-            event.sectionId === "title" || event.sectionId === "contact"
-              ? "summary"
-              : event.sectionId;
+          const resolvedSection = normalizePendingSection(event.sectionId);
           setActiveSectionId(resolvedSection);
           setFlashToken({
             sectionId: resolvedSection,

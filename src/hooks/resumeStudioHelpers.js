@@ -27,7 +27,6 @@ export const FIELD_LABELS = {
 export function sectionIdFromFieldId(fid) {
   if (!fid) return null;
   const part = fid.split(".")[0];
-  if (part === "header") return "summary";
   return part;
 }
 
@@ -42,7 +41,7 @@ export function patchFieldId(sectionId, index) {
 }
 
 export function normalizePendingSection(sectionId) {
-  if (sectionId === "name" || sectionId === "title" || sectionId === "contact") return "summary";
+  if (sectionId === "name" || sectionId === "title" || sectionId === "contact") return "header";
   return sectionId || null;
 }
 

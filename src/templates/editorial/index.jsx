@@ -25,10 +25,14 @@ export default function EditorialTemplate({ resume, ctx }) {
     }
     return fallback;
   };
+  const headerClass = sectionClass(activeSectionId, workingSection, "header").replace(
+    "resume-section",
+    "resume-header"
+  );
 
   return (
     <>
-      <div className="resume-header">
+      <div className={headerClass}>
         <h2 className={fc("header", null, "name")} onClick={(e) => click(e, fieldId("header", null, "name"))} style={fieldStyle(fieldId("header", null, "name"))}>
           {resume.name}
         </h2>

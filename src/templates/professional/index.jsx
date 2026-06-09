@@ -80,10 +80,14 @@ export default function ProfessionalTemplate({ resume, ctx }) {
   const schoolAlign = eduLayout.schoolAlign || "center";
   const majorAlign = eduLayout.majorAlign || "right";
   const skillsLayout = layoutConfig?.skills?.layout || "inline";
+  const headerClass = sectionClass(activeSectionId, workingSection, "header").replace(
+    "resume-section",
+    "pro-header"
+  );
 
   return (
     <div className="pro-page">
-      <header className="pro-header">
+      <header className={headerClass}>
         {avatar && (
           <DraggableAvatar
             src={avatar}

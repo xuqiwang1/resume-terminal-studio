@@ -187,28 +187,41 @@ function check(name, cond) {
     send(8, "tools/call", {
       name: "propose_batch_edit",
       arguments: {
-        title: "Bad batch",
-        changes: [{ operation: "replace_field", sectionId: "title", value: "x" }]
+        title: "Rewrite scalar header",
+        changes: [{ operation: "replace_field", sectionId: "title", value: "New title" }]
       }
     });
-    const invalidBatch = await waitFor(8);
-    check("invalid batch returns request-scoped error id", invalidBatch.id === 8);
-    check("invalid batch returns schema error text", invalidBatch.error?.message === "title replace_field requires field");
+    const scalarBatchResponse = await waitFor(8);
+    const scalarBatchText = scalarBatchResponse.result?.content?.[0]?.text || "";
+    check("scalar replace_field batch returns request id", scalarBatchResponse.id === 8);
+    check("scalar replace_field batch is accepted", scalarBatchText.includes('"status": "pending_confirmation"'));
+    check("scalar replace_field batch reports title section", scalarBatchText.includes('"title"'));
+
+    send(9, "tools/call", {
+      name: "propose_batch_edit",
+      arguments: {
+        title: "Bad batch",
+        changes: [{ operation: "replace_field", sectionId: "title", index: 0, value: "x" }]
+      }
+    });
+    const invalidBatch = await waitFor(9);
+    check("invalid batch returns request-scoped error id", invalidBatch.id === 9);
+    check("invalid batch returns schema error text", invalidBatch.error?.message === "title replace_field does not accept index");
 
     fs.writeFileSync(
       path.join(tmp, "context-state.json"),
       JSON.stringify({ version: 1, document: { mode: "template", title: "Missing binding" } }, null, 2),
       "utf8"
     );
-    send(9, "tools/call", {
+    send(10, "tools/call", {
       name: "propose_edit",
       arguments: {
         sectionId: "summary",
         content: "Should fail without active document binding"
       }
     });
-    const missingContext = await waitFor(9);
-    check("missing active document returns request-scoped error id", missingContext.id === 9);
+    const missingContext = await waitFor(10);
+    check("missing active document returns request-scoped error id", missingContext.id === 10);
     check(
       "missing active document returns explicit error",
       missingContext.error?.message.includes("active document context is missing")
