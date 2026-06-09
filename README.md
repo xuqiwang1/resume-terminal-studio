@@ -124,6 +124,15 @@ Resume Studio 会把右侧当前文档身份写入 `context-state.json`，包括
 
 ### Codex CLI
 
+如果你只是想接入 **OpenAI 官方文档 MCP**，官方当前推荐直接用 Codex CLI 添加远程 HTTP server：
+
+```bash
+codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp
+codex mcp list
+```
+
+Resume Studio 自己这个 MCP server 仍然是**本地 `stdio` 进程**，下面继续用 `~/.codex/config.toml` 配置：
+
 编辑 `~/.codex/config.toml`：
 
 ```toml

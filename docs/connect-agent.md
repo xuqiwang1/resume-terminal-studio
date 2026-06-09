@@ -16,6 +16,21 @@ Resume Studio 不内置终端。你在**自己喜欢的真终端**（iTerm / War
 
 ## Codex CLI 配置
 
+### 最新推荐方式
+
+OpenAI 官方当前文档里，**远程 HTTP MCP server** 的推荐接法已经是直接用 Codex CLI 添加，而不是先手写 `config.toml`：
+
+```bash
+codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp
+codex mcp list
+```
+
+这个命令适合接入 OpenAI 官方文档 MCP：`https://developers.openai.com/mcp`。
+
+### Resume Studio 的本地 MCP 配置
+
+Resume Studio 这里暴露的是**本地 `stdio` MCP server**，不是远程 HTTP MCP，所以本文档继续保留 `~/.codex/config.toml` 的配置方式。
+
 在 `~/.codex/config.toml` 中添加：
 
 当前这台电脑、当前源码仓库可直接复制：
@@ -55,6 +70,11 @@ WORKSPACE_DIR = "/你的项目路径/workspace"
 ```
 
 > 把 `/你的项目路径` 替换为项目实际绝对路径。
+
+建议把两类 server 分开配：
+
+- `openaiDeveloperDocs`：用 `codex mcp add ... --url ...` 接官方文档 MCP
+- `resume-studio`：用下面的 `config.toml` 接本地 `stdio` MCP
 
 如果连接已安装到 `/Applications` 的 APP：
 
