@@ -19,7 +19,7 @@ function cloneResume(resume) {
 }
 
 function getFieldValue(resume, sectionId, index = 0, field) {
-  if (sectionId === "summary" || sectionId === "title" || sectionId === "contact") {
+  if (sectionId === "name" || sectionId === "summary" || sectionId === "title" || sectionId === "contact") {
     return resume?.[sectionId] || "";
   }
   const targetField = field || DEFAULT_FIELD[sectionId] || "details";
@@ -56,7 +56,7 @@ function validateExistingItem(resume, sectionId, index) {
 }
 
 function validateSinglePatchInput(resume, { sectionId, index = 0, field, content, bulletIndex }) {
-  const allowed = ["title", "contact", "summary", "experience", "projects", "education", "skills"];
+  const allowed = ["name", "title", "contact", "summary", "experience", "projects", "education", "skills"];
   if (!allowed.includes(sectionId)) {
     throw new Error(`proposeEdit only supports ${allowed.join(", ")}.`);
   }
@@ -64,7 +64,7 @@ function validateSinglePatchInput(resume, { sectionId, index = 0, field, content
     throw new Error("proposeEdit requires non-empty content (the finished text written by the agent).");
   }
 
-  if (sectionId === "title" || sectionId === "contact" || sectionId === "summary") {
+  if (sectionId === "name" || sectionId === "title" || sectionId === "contact" || sectionId === "summary") {
     return {
       field: undefined,
       before: resume?.[sectionId] || "",
@@ -114,7 +114,7 @@ function validateSinglePatchInput(resume, { sectionId, index = 0, field, content
 }
 
 function applySinglePatch(resume, patch) {
-  if (patch.sectionId === "summary" || patch.sectionId === "title" || patch.sectionId === "contact") {
+  if (patch.sectionId === "name" || patch.sectionId === "summary" || patch.sectionId === "title" || patch.sectionId === "contact") {
     return { ...resume, [patch.sectionId]: patch.after };
   }
 
@@ -144,7 +144,7 @@ function applySinglePatch(resume, patch) {
 }
 
 function applyNormalizedBatchChange(resume, change) {
-  if (change.operation === "replace_section" && ["summary", "title", "contact"].includes(change.sectionId)) {
+  if (change.operation === "replace_section" && ["name", "summary", "title", "contact"].includes(change.sectionId)) {
     return { ...resume, [change.sectionId]: change.after };
   }
 
@@ -173,6 +173,30 @@ function applyNormalizedBatchChange(resume, change) {
   throw new Error(`Unsupported batch operation "${change.operation}"`);
 }
 
+function isPendingStaleForActiveDocument(pendingPatch, activeDocument) {
+  if (!pendingPatch || !activeDocument) return false;
+  if (
+    activeDocument.documentId &&
+    pendingPatch.documentId &&
+    activeDocument.documentId !== pendingPatch.documentId
+  ) {
+    return true;
+  }
+  return (
+    Number.isInteger(activeDocument.revision) &&
+    Number.isInteger(pendingPatch.revision) &&
+    activeDocument.revision !== pendingPatch.revision
+  );
+}
+
+function isActiveDocumentBound(activeDocument) {
+  return Boolean(
+    activeDocument?.documentId &&
+      activeDocument?.activeResumePath &&
+      Number.isInteger(activeDocument.revision)
+  );
+}
+
 function normalizeBatchChange(resume, change) {
   if (!change || typeof change !== "object") {
     throw new Error("Batch change must be an object");
@@ -183,7 +207,7 @@ function normalizeBatchChange(resume, change) {
   if (!sectionId) throw new Error("Batch change requires sectionId");
 
   if (operation === "replace_section") {
-    if (["summary", "title", "contact"].includes(sectionId)) {
+    if (["name", "summary", "title", "contact"].includes(sectionId)) {
       if (typeof change.value !== "string") {
         throw new Error(`${sectionId} replace_section requires string value`);
       }
@@ -214,8 +238,11 @@ function normalizeBatchChange(resume, change) {
   }
 
   if (operation === "replace_field") {
-    if (typeof change.index !== "number" || typeof change.field !== "string") {
-      throw new Error(`${sectionId} replace_field requires index and field`);
+    if (typeof change.field !== "string" || !change.field) {
+      throw new Error(`${sectionId} replace_field requires field`);
+    }
+    if (typeof change.index !== "number") {
+      throw new Error(`${sectionId} replace_field requires index`);
     }
     validateStructuredField(sectionId, change.field);
     const current = validateExistingItem(resume, sectionId, change.index);
@@ -271,6 +298,7 @@ function createResumeCore({ bus, persistence }) {
   let resume = persistence.loadResume();
   let pendingPatch = persistence.loadPendingPatch();
   let selection = persistence.loadSelection();
+  let activeDocument = persistence.loadActiveDocument?.() || null;
 
   function hydrateResume(next) {
     resume = next;
@@ -295,6 +323,26 @@ function createResumeCore({ bus, persistence }) {
     bus.emit("pending.hydrated", { pendingPatch });
   }
 
+  function hydrateActiveDocument(next) {
+    activeDocument = next || null;
+    if (persistence.saveActiveDocument && activeDocument) {
+      persistence.saveActiveDocument(activeDocument);
+    }
+    let clearedPendingPatch = false;
+    if (isPendingStaleForActiveDocument(pendingPatch, activeDocument)) {
+      persistence.clearPendingPatch();
+      pendingPatch = null;
+      clearedPendingPatch = true;
+      bus.emit("pending.cleared", { reason: "stale-document", activeDocument });
+    }
+    bus.emit("document.hydrated", { activeDocument });
+    return { activeDocument, clearedPendingPatch };
+  }
+
+  function getActiveDocument() {
+    return activeDocument;
+  }
+
   function getSelection() {
     return selection;
   }
@@ -306,6 +354,9 @@ function createResumeCore({ bus, persistence }) {
   }
 
   function proposeSectionEdit({ sessionId, sectionId, content, index = 0, field, bulletIndex }) {
+    if (!isActiveDocumentBound(activeDocument)) {
+      throw new Error("Active document context is required before proposing edits");
+    }
     const normalized = validateSinglePatchInput(resume, {
       sectionId,
       index,
@@ -317,8 +368,11 @@ function createResumeCore({ bus, persistence }) {
       id: crypto.randomUUID(),
       kind: "single",
       sessionId,
+      documentId: activeDocument?.documentId,
+      revision: activeDocument?.revision,
+      activeResumePath: activeDocument?.activeResumePath,
       sectionId,
-      index: ["title", "contact", "summary"].includes(sectionId) ? undefined : index,
+      index: ["name", "title", "contact", "summary"].includes(sectionId) ? undefined : index,
       field: normalized.field,
       bulletIndex: normalized.bulletIndex,
       append: normalized.append,
@@ -331,6 +385,9 @@ function createResumeCore({ bus, persistence }) {
   }
 
   function proposeBatchEdit({ sessionId, title, summary = "", changes }) {
+    if (!isActiveDocumentBound(activeDocument)) {
+      throw new Error("Active document context is required before proposing edits");
+    }
     if (typeof title !== "string" || !title.trim()) {
       throw new Error("Batch edit requires title");
     }
@@ -342,6 +399,9 @@ function createResumeCore({ bus, persistence }) {
       id: crypto.randomUUID(),
       kind: "batch",
       sessionId,
+      documentId: activeDocument?.documentId,
+      revision: activeDocument?.revision,
+      activeResumePath: activeDocument?.activeResumePath,
       title,
       summary,
       changes: normalizedChanges
@@ -357,6 +417,9 @@ function createResumeCore({ bus, persistence }) {
     }
     if (sessionId && pendingPatch.sessionId !== sessionId) {
       throw new Error("Invalid pending patch confirmation");
+    }
+    if (isPendingStaleForActiveDocument(pendingPatch, activeDocument)) {
+      throw new Error("Stale pending patch: active document changed");
     }
     let nextResume = resume;
     if (pendingPatch.kind === "batch") {
@@ -390,9 +453,11 @@ function createResumeCore({ bus, persistence }) {
   return {
     hydrateResume,
     hydratePendingPatch,
+    hydrateActiveDocument,
     setResume,
     getResume,
     getPendingPatch,
+    getActiveDocument,
     getSelection,
     setSelection,
     proposeSectionEdit,

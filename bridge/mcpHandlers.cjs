@@ -77,6 +77,24 @@ function createMcpHandlers({
     };
   }
 
+  function assertContextSafe() {
+    const context = readContextState();
+    const activeDocument = context?.document;
+    const appPath = activeDocument?.activeResumePath;
+    if (!appPath || !activeDocument?.documentId || !Number.isFinite(Number(activeDocument.revision))) {
+      throw new Error("Resume Studio active document context is missing; open the app before proposing edits");
+    }
+    if (appPath && path.resolve(appPath) !== path.resolve(activeResumePath)) {
+      throw new Error(
+        `MCP workspace mismatch: app is editing ${appPath}, but MCP is writing ${activeResumePath}`
+      );
+    }
+    core.hydrateActiveDocument({
+      ...activeDocument,
+      revision: Number(activeDocument.revision)
+    });
+  }
+
   function callTool(name, args = {}) {
     switch (name) {
       case "get_context":
@@ -98,6 +116,7 @@ function createMcpHandlers({
       case "get_materials":
         return textContent(readExtractedMaterials(args.maxChars));
       case "propose_edit": {
+        assertContextSafe();
         const pending = runtime.callTool("propose_section_edit", {
           sessionId: activeSession.sessionId,
           sectionId: args.sectionId,
@@ -118,19 +137,26 @@ function createMcpHandlers({
         });
       }
       case "propose_batch_edit": {
+        assertContextSafe();
+        const startedAt = Date.now();
         const pending = runtime.callTool("propose_batch_edit", {
           sessionId: activeSession.sessionId,
           title: args.title,
           summary: args.summary,
           changes: args.changes
         });
+        const durationMs = Date.now() - startedAt;
+        const sections = [...new Set((pending.changes || []).map((change) => change.sectionId))];
         return textContent({
           status: "pending_confirmation",
           kind: pending.kind,
           pendingId: pending.id,
           title: pending.title,
           summary: pending.summary || "",
-          changes: pending.changes,
+          changeCount: pending.changes?.length || 0,
+          sections,
+          durationMs,
+          warning: durationMs > 1000 ? "Batch proposal was slower than expected" : "",
           message:
             "已生成一组待确认的批量改动，尚未写入简历。请等待用户在 Resume Studio 工作台点击「接受」或「拒绝」。"
         });

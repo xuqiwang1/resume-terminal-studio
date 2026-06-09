@@ -16,6 +16,8 @@ import {
   fetchActiveResume,
   fetchActivityState,
   fetchBridgeHealth,
+  fetchContext,
+  fetchPendingPatch,
   listResumeFiles,
   listResumeHistory,
   archiveCurrentResume,
@@ -43,6 +45,22 @@ function waitForLayout() {
   });
 }
 
+function buildDocumentState({
+  mode,
+  fileName = "",
+  historyFileName = "",
+  title = "",
+  activeResumePath = ""
+}) {
+  return {
+    mode,
+    fileName,
+    historyFileName,
+    title,
+    activeResumePath
+  };
+}
+
 export function useResumeStudio() {
   const [resume, setResume] = useState(initialResume);
   const [activeSectionId, setActiveSectionId] = useState("summary");
@@ -53,6 +71,7 @@ export function useResumeStudio() {
   const [bridgeStatus, setBridgeStatus] = useState({
     ok: false,
     workspaceDir: "",
+    activeResumePath: "",
     terminalAgentPath: "",
     activityLogPath: "",
     session: desktopSessionInfo(),
@@ -119,7 +138,7 @@ export function useResumeStudio() {
   }, []);
 
   const syncDocumentState = useCallback((document) => {
-    syncContextDocument(document).catch(() => {});
+    return syncContextDocument(document);
   }, []);
 
   const onSelectField = useCallback((fid) => {
@@ -212,6 +231,7 @@ export function useResumeStudio() {
         setBridgeStatus({
           ok: !!data.ok,
           workspaceDir: data.workspaceDir || "",
+          activeResumePath: data.activeResumePath || "",
           terminalAgentPath: data.terminalAgentPath || "",
           activityLogPath: data.activityLogPath || "",
           session: data.session || desktopSession,
@@ -222,6 +242,7 @@ export function useResumeStudio() {
         setBridgeStatus({
           ok: false,
           workspaceDir: "",
+          activeResumePath: "",
           terminalAgentPath: "",
           activityLogPath: "",
           session: desktopSession,
@@ -233,6 +254,34 @@ export function useResumeStudio() {
       .then((data) => {
         const r = data.resume || initialResume;
         applyResumeSnapshot(r, { updatePrevious: true });
+        const activeResumePath = data.activeResumePath || "";
+        fetchContext()
+          .then((contextData) => {
+            const existingDocument = contextData.context?.document;
+            const sameActivePath = existingDocument?.activeResumePath === activeResumePath;
+            if (!sameActivePath) {
+              syncDocumentState(
+                buildDocumentState({
+                  mode: "template",
+                  fileName: "",
+                  historyFileName: "",
+                  title: `${r.name || "Your Name"}-resume`,
+                  activeResumePath
+                })
+              ).catch(() => {});
+            }
+          })
+          .catch(() => {
+            syncDocumentState(
+              buildDocumentState({
+                mode: "template",
+                fileName: "",
+                historyFileName: "",
+                title: `${r.name || "Your Name"}-resume`,
+                activeResumePath
+              })
+            ).catch(() => {});
+          });
         initialLoadDone.current = true;
       })
       .catch(() => {
@@ -243,6 +292,16 @@ export function useResumeStudio() {
     fetchActivityState()
       .then((data) => setActivityState(data.state || {}))
       .catch(() => {});
+
+    fetchPendingPatch()
+      .then((data) => setPendingPatch(data.pending || null))
+      .catch((e) => {
+        pushActivityItem({
+          label: "Pending",
+          state: "Error",
+          text: `读取待确认改动失败：${e.message}`
+        });
+      });
 
     stopResumeStream = subscribeResumeUpdates((nextResume) => {
       // File watchers can emit several times for one disk write, and external
@@ -339,7 +398,7 @@ export function useResumeStudio() {
       stopActivityStream();
       stopPendingStream();
     };
-  }, [applyResumeSnapshot, pushActivityItem]);
+  }, [applyResumeSnapshot, pushActivityItem, syncDocumentState]);
 
   const runAction = async (actionId) => {
     setActivityItems([]);
@@ -440,12 +499,6 @@ export function useResumeStudio() {
         fileName: currentFileName || `${resume.name || "resume"}-studio`
       });
       setCurrentFileName(saved.fileName);
-      syncDocumentState({
-        mode: "file",
-        fileName: saved.fileName,
-        historyFileName: "",
-        title: saved.document?.meta?.title || saved.fileName
-      });
       await refreshFiles();
       pushActivityItem({
         label: "File",
@@ -468,12 +521,7 @@ export function useResumeStudio() {
     const opened = await openResumeFile(latest.fileName);
     applyResumeSnapshot(opened.document.resume);
     setCurrentFileName(opened.fileName);
-    syncDocumentState({
-      mode: "file",
-      fileName: opened.fileName,
-      historyFileName: "",
-      title: opened.document?.meta?.title || opened.fileName
-    });
+    setPendingPatch(null);
     pushActivityItem({
       label: "File",
       state: "Opened",
@@ -499,12 +547,7 @@ export function useResumeStudio() {
     setDiff({ before: "", after: "" });
     setPatchAnimation(null);
     setActiveSectionId("education");
-    syncDocumentState({
-      mode: "template",
-      fileName: "",
-      historyFileName: "",
-      title: `${nextResume.name || "Your Name"}-resume`
-    });
+    setPendingPatch(null);
     await refreshHistory();
     pushActivityItem({
       label: "History",
@@ -520,12 +563,7 @@ export function useResumeStudio() {
     setCurrentFileName("");
     setDiff({ before: "", after: "" });
     setPatchAnimation(null);
-    syncDocumentState({
-      mode: "history",
-      fileName: "",
-      historyFileName: fileName,
-      title: fileName
-    });
+    setPendingPatch(null);
     await refreshHistory();
     pushActivityItem({
       label: "History",

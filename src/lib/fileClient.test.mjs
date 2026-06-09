@@ -11,6 +11,8 @@ function check(name, cond) {
 }
 
 const previousWindow = globalThis.window;
+const sourceModuleUrl = new URL("./fileClient.js", import.meta.url);
+const source = await (await import("node:fs/promises")).readFile(sourceModuleUrl, "utf8");
 const { apiUrl, authHeaders, eventSourceUrl, contextApiUrlForTest } = await import("./fileClient.js");
 
 globalThis.window = {};
@@ -40,6 +42,10 @@ check(
   "desktop context API uses bridge base URL",
   contextApiUrlForTest("/api/context") === "http://127.0.0.1:49152/api/context"
 );
+check("fileClient exports fetchPendingPatch", source.includes("export async function fetchPendingPatch"));
+check("fetchPendingPatch calls pending endpoint", source.includes('apiUrl("/api/patch/pending")'));
+check("confirmPendingPatch surfaces server errors", source.includes('payload.error || "Failed to confirm patch"'));
+check("rejectPendingPatch surfaces server errors", source.includes('payload.error || "Failed to reject patch"'));
 
 globalThis.window = previousWindow;
 

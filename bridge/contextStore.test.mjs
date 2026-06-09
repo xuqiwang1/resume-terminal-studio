@@ -9,7 +9,14 @@ process.env.WORKSPACE_DIR = tmp;
 const store = await import(`./fileStore.js?context-test=${Date.now()}`);
 
 await store.writeContextState({
-  document: { mode: "file", fileName: "../bad.rts.json", title: "Demo" },
+  document: {
+    documentId: "file:bad.rts.json",
+    mode: "file",
+    fileName: "../bad.rts.json",
+    title: "Demo",
+    activeResumePath: path.join(tmp, "active-resume.json"),
+    revision: 42
+  },
   view: { visiblePage: 0, pageCount: 0, scrollTop: -10, zoom: "width", scale: 1.2 },
   selection: {
     fieldId: "experience.2.details",
@@ -25,8 +32,11 @@ await store.writeContextState({
 const context = await store.readContextState();
 
 assert.equal(context.version, 1);
+assert.equal(context.document.documentId, "file:bad.rts.json");
 assert.equal(context.document.mode, "file");
 assert.equal(context.document.fileName, "bad.rts.json");
+assert.equal(context.document.activeResumePath, path.join(tmp, "active-resume.json"));
+assert.equal(context.document.revision, 42);
 assert.equal(context.view.visiblePage, 1);
 assert.equal(context.view.pageCount, 1);
 assert.equal(context.view.scrollTop, 0);

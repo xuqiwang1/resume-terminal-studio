@@ -14,6 +14,15 @@ const source = fs.readFileSync(new URL("./useResumeStudio.js", import.meta.url),
 check("hook computes batch section target", source.includes("getPendingPatchPrimarySection"));
 check("hook computes batch activity label", source.includes("describePendingPatch"));
 check("hook avoids sectionId-only confirm text", source.includes("已接受 AI 改动并写入"));
+check("hook imports fetchPendingPatch", source.includes("fetchPendingPatch"));
+check("hook imports fetchContext", source.includes("fetchContext"));
+check("hook fetches pending on initial load", source.includes("fetchPendingPatch()"));
+check("hook records pending fetch errors", source.includes("读取待确认改动失败"));
+check("hook syncs active document after initial resume load", source.includes("syncDocumentState(") && source.includes("data.activeResumePath || \"\""));
+check("hook preserves existing startup document", source.includes("sameActivePath"));
+check("hook does not compute documentId client-side", !source.includes("const documentId ="));
+check("hook does not compute revision client-side", !source.includes("revision: documentId.length"));
+check("hook syncs activeResumePath", source.includes("activeResumePath"));
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);

@@ -88,11 +88,13 @@ AI 生成内容的不确定性和 agent 绕过用户确认都是核心风险。�
 - `bridge/mcp-server.cjs` 通过 stdio 暴露工具给 Codex/Claude/agy。
 - 核心工具包括 `get_context`、`get_resume`、`get_materials`、`propose_edit`、`propose_batch_edit`、`get_pending_patch`、`get_activity`、`get_selection`。
 - agent 不应直接写 `active-resume.json`，也不能确认/拒绝 pending patch；必须走 MCP 工具提交待确认改动，由用户在 APP 里接受或拒绝。
+- MCP `get_context` 暴露 `workspaceDiagnostics` 和 `activeDocument`；提案前会校验 agent workspace 与 App 当前文档路径一致。
 
 ### Storage
 
 - `active-resume.json`：当前简历。
 - `pending-patch.json`：单槽待确认改动。
+- `context-state.json`：App 当前文档、可见页、选区；其中 `documentId`、`revision`、`activeResumePath` 是 MCP 安全绑定的依据。
 - `history/*.json`：历史快照。
 - `materials/.extracted/*.md`：素材抽取结果。
 - `activity-log.ndjson`：活动日志。
@@ -101,9 +103,11 @@ AI 生成内容的不确定性和 agent 绕过用户确认都是核心风险。�
 
 ### Pending patch 单槽机制
 
-`propose_edit` / `propose_batch_edit` 不写简历，只写 pending patch。single patch 包含 before、after、sectionId、index、field、bulletIndex 等定位信息；batch patch 包含一组已校验的 changes。用户确认后，engine 才将 patch 应用到 active resume，并清空 pending slot。
+`propose_edit` / `propose_batch_edit` 不写简历，只写 pending patch。single patch 包含 before、after、sectionId、index、field、bulletIndex 等定位信息；batch patch 包含一组已校验的 changes。两类 pending 都绑定创建时的 `documentId`、`revision` 和 `activeResumePath`。用户确认后，engine 才将 patch 应用到 active resume，并清空 pending slot。
 
 单槽设计降低复杂度：同一时间只有一个待确认改动，避免多 patch 排队时的冲突和认知负担。
+
+如果用户在 pending 创建后新建模板、打开历史版本或切换文件，App 会同步新的 active document。core 会清空 stale pending；即使旧 pending 文件残留，确认接口也会返回 409，不会把旧文档的 AI 改动应用到当前简历。
 
 ### 历史存档
 

@@ -128,6 +128,17 @@ function createEngineCore() {
   const persistence = createPersistence({ workspaceDir });
   const bus = createEventBus();
   const core = createResumeCore({ bus, persistence });
+  if (!core.getActiveDocument()?.activeResumePath) {
+    core.hydrateActiveDocument({
+      documentId: "workspace:active-resume",
+      mode: "workspace",
+      fileName: "",
+      historyFileName: "",
+      title: "active-resume",
+      activeResumePath,
+      revision: 0
+    });
+  }
   return { core, persistence };
 }
 

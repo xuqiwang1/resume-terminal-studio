@@ -75,8 +75,23 @@ function readContextState() {
 
 function buildContextPayload() {
   core.setSelection(loadSelectionState());
+  const context = readContextState();
+  const activeDocument = context.document || null;
+  const workspaceDiagnostics = {
+    mcpWorkspaceDir: workspaceDir,
+    activeResumePath,
+    appDocumentPath: activeDocument?.activeResumePath || "",
+    aligned:
+      !activeDocument?.activeResumePath ||
+      path.resolve(activeDocument.activeResumePath) === path.resolve(activeResumePath)
+  };
+  if (activeDocument) {
+    core.hydrateActiveDocument(activeDocument);
+  }
   return {
-    context: readContextState(),
+    context,
+    activeDocument,
+    workspaceDiagnostics,
     resume: runtime.callTool("get_current_resume", {}),
     pending: readPendingPatch(),
     workspaceDir,
@@ -146,8 +161,12 @@ function handleMessage(message) {
   }
 
   if (method === "tools/call") {
-    const { name, arguments: args } = params || {};
-    return success(id, callTool(name, args || {}));
+    try {
+      const { name, arguments: args } = params || {};
+      return success(id, callTool(name, args || {}));
+    } catch (error) {
+      return failure(id, -32002, error.message);
+    }
   }
 
   if (method === "resources/list") {

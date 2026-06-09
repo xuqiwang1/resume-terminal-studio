@@ -35,7 +35,7 @@ const toolDefinitions = [
   },
   {
     name: "propose_edit",
-    description: "Propose a finished edit to one resume field. First call get_context and get_materials, then WRITE the final polished text yourself and submit it here. This does NOT change the resume directly: it stages a pending patch that only the user can accept or reject in the Resume Studio workbench.\n\nSections:\n- title / contact / summary: plain text, no index/field.\n- experience / projects: arrays; use index + field (default 'details').\n- education: array of {school,degree,major,date,tag}; use index + field (one of school/degree/major/date/tag).\n- skills: array of {category,content}; use index + field (one of category/content; default 'content').\nFor structured arrays, proposing with index 0 onto an EMPTY array appends a new item.",
+    description: "Propose a finished edit to one resume field. First call get_context and get_materials, then WRITE the final polished text yourself and submit it here. This does NOT change the resume directly: it stages a pending patch that only the user can accept or reject in the Resume Studio workbench.\n\nSections:\n- name / title / contact / summary: plain text, no index/field.\n- experience / projects: arrays; use index + field (default 'details').\n- education: array of {school,degree,major,date,tag}; use index + field (one of school/degree/major/date/tag).\n- skills: array of {category,content}; use index + field (one of category/content; default 'content').\nFor structured arrays, proposing with index 0 onto an EMPTY array appends a new item.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -43,7 +43,7 @@ const toolDefinitions = [
       properties: {
         sectionId: {
           type: "string",
-          enum: ["title", "contact", "summary", "experience", "projects", "education", "skills"],
+          enum: ["name", "title", "contact", "summary", "experience", "projects", "education", "skills"],
           description: "Which section to edit. avatar is set by the user in the workbench, not here."
         },
         index: {
@@ -98,7 +98,7 @@ const toolDefinitions = [
               },
               sectionId: {
                 type: "string",
-                enum: ["title", "contact", "summary", "experience", "projects", "education", "skills"]
+                enum: ["name", "title", "contact", "summary", "experience", "projects", "education", "skills"]
               },
               index: {
                 type: "integer",

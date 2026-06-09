@@ -10,12 +10,33 @@ const { createEventBus } = require("./eventBus.cjs");
 const { createPersistence } = require("./persistence.cjs");
 const { createResumeCore } = require("./resumeCore.cjs");
 
+const unboundTmp = fs.mkdtempSync(path.join(os.tmpdir(), "resume-core-unbound-"));
+const unboundPersistence = createPersistence({ workspaceDir: unboundTmp });
+unboundPersistence.saveResume({ name: "No Context", summary: "" });
+const unboundCore = createResumeCore({ bus: createEventBus(), persistence: unboundPersistence });
+assert.throws(
+  () =>
+    unboundCore.proposeSectionEdit({
+      sessionId: "session-1",
+      sectionId: "summary",
+      content: "no context"
+    }),
+  /Active document context is required/
+);
+fs.rmSync(unboundTmp, { recursive: true, force: true });
+
 const events = [];
 const bus = createEventBus();
 bus.on("resume.updated", (payload) => events.push(payload));
 
 const persistence = createPersistence({ workspaceDir: tmp });
 persistence.saveResume({ name: "Test", summary: "" });
+persistence.saveActiveDocument({
+  documentId: "doc-active",
+  revision: 3,
+  mode: "file",
+  activeResumePath: path.join(tmp, "active-resume.json")
+});
 bus.emit("resume.updated", { source: "test", resumeId: "active" });
 
 assert.equal(events.length, 1);
@@ -23,6 +44,21 @@ assert.equal(
   JSON.parse(fs.readFileSync(path.join(tmp, "active-resume.json"), "utf8")).name,
   "Test"
 );
+assert.deepEqual(
+  {
+    documentId: persistence.loadActiveDocument().documentId,
+    revision: persistence.loadActiveDocument().revision,
+    mode: persistence.loadActiveDocument().mode,
+    activeResumePath: persistence.loadActiveDocument().activeResumePath
+  },
+  {
+    documentId: "doc-active",
+    revision: 3,
+    mode: "file",
+    activeResumePath: path.join(tmp, "active-resume.json")
+  }
+);
+assert.equal(typeof persistence.loadActiveDocument().updatedAt, "string");
 
 const core = createResumeCore({ bus, persistence });
 core.setResume({
@@ -57,6 +93,56 @@ core.hydratePendingPatch(persistence.loadPendingPatch());
 core.confirmPendingPatch({ pendingId: foreignPending.id });
 assert.equal(core.getResume().summary, "confirmed without matching session");
 assert.equal(core.getPendingPatch(), null);
+
+core.hydrateActiveDocument({
+  documentId: "doc-1",
+  revision: 1,
+  activeResumePath: path.join(tmp, "active-resume.json")
+});
+
+const docPending = core.proposeSectionEdit({
+  sessionId: "session-1",
+  sectionId: "summary",
+  content: "Document-bound summary"
+});
+
+assert.equal(docPending.documentId, "doc-1");
+assert.equal(docPending.revision, 1);
+
+core.hydrateActiveDocument({
+  documentId: "doc-2",
+  revision: 1,
+  activeResumePath: path.join(tmp, "active-resume.json")
+});
+
+assert.equal(core.getPendingPatch(), null);
+assert.equal(persistence.loadPendingPatch(), null);
+assert.throws(
+  () => core.confirmPendingPatch({ sessionId: "session-1", pendingId: docPending.id }),
+  /Invalid pending patch confirmation/
+);
+
+core.hydrateActiveDocument({
+  documentId: "doc-1",
+  revision: 1,
+  activeResumePath: path.join(tmp, "active-resume.json")
+});
+
+const stalePending = core.proposeSectionEdit({
+  sessionId: "session-1",
+  sectionId: "summary",
+  content: "Pending that should clear on switch"
+});
+assert.equal(core.getPendingPatch().id, stalePending.id);
+
+const hydrateResult = core.hydrateActiveDocument({
+  documentId: "doc-1",
+  revision: 2,
+  activeResumePath: path.join(tmp, "active-resume.json")
+});
+assert.equal(hydrateResult.clearedPendingPatch, true);
+assert.equal(core.getPendingPatch(), null);
+assert.equal(persistence.loadPendingPatch(), null);
 
 const detailPending = core.proposeSectionEdit({
   sessionId: "session-1",
@@ -151,6 +237,17 @@ assert.equal(appendStructuredPending.append, true);
 core.confirmPendingPatch({ sessionId: "session-1", pendingId: appendStructuredPending.id });
 assert.equal(core.getResume().education[0].school, "新学校");
 
+const namePending = core.proposeSectionEdit({
+  sessionId: "session-1",
+  sectionId: "name",
+  content: "许起旺"
+});
+
+assert.equal(namePending.sectionId, "name");
+assert.equal(namePending.before, "Test");
+core.confirmPendingPatch({ sessionId: "session-1", pendingId: namePending.id });
+assert.equal(core.getResume().name, "许起旺");
+
 core.setResume({
   name: "Test",
   title: "Old title",
@@ -244,6 +341,16 @@ const rejectedBatch = core.proposeBatchEdit({
 core.rejectPendingPatch({ sessionId: "session-1", pendingId: rejectedBatch.id });
 assert.equal(core.getResume().summary, "");
 assert.equal(core.getResume().skills[0].content, "old content");
+
+assert.throws(
+  () =>
+    core.proposeBatchEdit({
+      sessionId: "session-1",
+      title: "Bad batch",
+      changes: [{ operation: "replace_field", sectionId: "title", value: "x" }]
+    }),
+  /replace_field requires field/i
+);
 
 assert.throws(
   () =>

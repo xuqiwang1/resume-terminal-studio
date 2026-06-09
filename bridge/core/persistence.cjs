@@ -43,6 +43,27 @@ function createPersistence({ workspaceDir }) {
     loadSelection() {
       return readJson(path.join(workspaceDir, "selection-state.json"), {});
     },
+    saveContextState(state) {
+      writeJson(path.join(workspaceDir, "context-state.json"), state || {});
+    },
+    loadContextState() {
+      return readJson(path.join(workspaceDir, "context-state.json"), {});
+    },
+    saveActiveDocument(document) {
+      const current = this.loadContextState() || {};
+      this.saveContextState({
+        ...current,
+        document: {
+          ...(current.document || {}),
+          ...(document || {}),
+          updatedAt: new Date().toISOString()
+        }
+      });
+    },
+    loadActiveDocument() {
+      const state = this.loadContextState();
+      return state?.document || null;
+    },
     appendActivity(event) {
       ensureDir();
       fs.appendFileSync(
