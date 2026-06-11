@@ -1,4 +1,5 @@
 import AnimatedText from "../../components/AnimatedText";
+import RichText from "../../components/RichText";
 import { fieldId, fieldClass, sectionClass, getDraftText } from "../shared";
 
 export default function EditorialTemplate({ resume, ctx }) {
@@ -40,7 +41,7 @@ export default function EditorialTemplate({ resume, ctx }) {
           {resume.title}
         </p>
         <p className={fc("header", null, "contact")} onClick={(e) => click(e, fieldId("header", null, "contact"))} style={fieldStyle(fieldId("header", null, "contact"))}>
-          {resume.contact}
+          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} />
         </p>
       </div>
 
@@ -92,7 +93,9 @@ export default function EditorialTemplate({ resume, ctx }) {
                 onClick={(e) => click(e, fieldId("skills", index, "content"))}
                 style={{ whiteSpace: "pre-wrap", ...fieldStyle(fieldId("skills", index, "content")) }}
               >
-                {renderAnimated(fieldId("skills", index, "content"), item.content)}
+                {patchFor(fieldId("skills", index, "content"))?.active
+                  ? renderAnimated(fieldId("skills", index, "content"), item.content)
+                  : <RichText value={item.content} fieldId={fieldId("skills", index, "content")} />}
               </p>
             </div>
           ))}
@@ -112,7 +115,9 @@ export default function EditorialTemplate({ resume, ctx }) {
               </strong>
               <span className={fc("experience", index, "date")} onClick={(e) => click(e, fieldId("experience", index, "date"))} style={fieldStyle(fieldId("experience", index, "date"))}>{item.date}</span>
               <p className={`${fc("experience", index, "details")} ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={fieldStyle(detailsFid)}>
-                {renderAnimated(detailsFid, showDraft ? experienceDraft : item.details)}
+                {detailsPatch?.active
+                  ? renderAnimated(detailsFid, showDraft ? experienceDraft : item.details)
+                  : <RichText value={showDraft ? experienceDraft : item.details} fieldId={detailsFid} />}
               </p>
             </div>
           );
@@ -134,7 +139,9 @@ export default function EditorialTemplate({ resume, ctx }) {
                 {item.role} · {item.date}
               </span>
               <p className={`${fc("projects", index, "details")} ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={fieldStyle(detailsFid)}>
-                {renderAnimated(detailsFid, showDraft ? projectsDraft : item.details)}
+                {detailsPatch?.active
+                  ? renderAnimated(detailsFid, showDraft ? projectsDraft : item.details)
+                  : <RichText value={showDraft ? projectsDraft : item.details} fieldId={detailsFid} />}
               </p>
             </div>
           );
@@ -146,7 +153,9 @@ export default function EditorialTemplate({ resume, ctx }) {
           <h3>个人总结</h3>
           <div className={`resume-card ${summaryDraft !== null ? "drafting" : ""}`}>
             <p className={fc("summary", null, "text")} onClick={(e) => click(e, fieldId("summary", null, "text"))} style={{ whiteSpace: "pre-wrap", ...fieldStyle(fieldId("summary", null, "text")) }}>
-              {renderAnimated(fieldId("summary", null, "text"), summaryDraft ?? resume.summary)}
+              {patchFor(fieldId("summary", null, "text"))?.active
+                ? renderAnimated(fieldId("summary", null, "text"), summaryDraft ?? resume.summary)
+                : <RichText value={summaryDraft ?? resume.summary} fieldId={fieldId("summary", null, "text")} />}
             </p>
           </div>
         </section>

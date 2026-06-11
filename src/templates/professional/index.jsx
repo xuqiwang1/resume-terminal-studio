@@ -19,7 +19,7 @@ function StructuredText({ value }) {
           return (
             <span className="pro-detail-line" key={index}>
               <strong>{labeled[1]}</strong>
-              {labeled[2]}
+              <RichText value={labeled[2]} fieldId={`structured.${index}`} />
             </span>
           );
         }
@@ -27,14 +27,14 @@ function StructuredText({ value }) {
         if (/^[^【\n]+｜\d{4}\.\d{2}-\d{4}\.\d{2}$/.test(trimmed)) {
           return (
             <span className="pro-stage-line" key={index}>
-              {trimmed}
+              <RichText value={trimmed} fieldId={`structured.${index}`} />
             </span>
           );
         }
 
         return (
           <span className="pro-detail-line" key={index}>
-            {trimmed}
+            <RichText value={trimmed} fieldId={`structured.${index}`} />
           </span>
         );
       })}
@@ -108,7 +108,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
           onClick={(e) => click(e, fieldId("header", null, "contact"))}
           style={withFieldStyle(fieldId("header", null, "contact"), { fontSize: "var(--r-fs-muted, 11.5px)" })}
         >
-          {resume.contact}
+          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} />
         </p>
         {resume.title && (
           <p
