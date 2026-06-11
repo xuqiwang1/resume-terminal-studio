@@ -1,4 +1,5 @@
 import { toSegments } from "../lib/richText";
+import { linkifyText } from "../lib/linkifyText";
 
 export default function RichText({ value, fieldId }) {
   const segments = toSegments(value);
@@ -13,10 +14,30 @@ export default function RichText({ value, fieldId }) {
         if (seg.style?.color) style.color = seg.style.color;
         if (seg.style?.fontFamily) style.fontFamily = seg.style.fontFamily;
 
-        const hasStyle = Object.keys(style).length > 0;
-        return hasStyle
-          ? <span key={i} style={style}>{seg.text}</span>
-          : <span key={i}>{seg.text}</span>;
+        const parts = linkifyText(seg.text);
+        return parts.map((part, j) => {
+          const key = `${i}-${j}`;
+          if (part.type === "link") {
+            return (
+              <a
+                key={key}
+                href={part.href}
+                target="_blank"
+                rel="noreferrer"
+                style={style}
+                data-rich-link
+              >
+                {part.text}
+              </a>
+            );
+          }
+
+          return (
+            <span key={key} style={style}>
+              {part.text}
+            </span>
+          );
+        });
       })}
     </span>
   );

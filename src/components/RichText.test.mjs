@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const source = fs.readFileSync(path.join(here, "RichText.jsx"), "utf8");
+
+assert.match(source, /import\s+\{\s*linkifyText\s*\}\s+from\s+["']\.\.\/lib\/linkifyText["'];?/);
+assert.match(source, /<a\s+/);
+assert.match(source, /target="_blank"/);
+assert.match(source, /rel="noreferrer"/);
+assert.match(source, /data-rich-link/);
