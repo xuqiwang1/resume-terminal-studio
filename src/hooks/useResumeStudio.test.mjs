@@ -29,6 +29,7 @@ check("hook maps intent targets through pending section normalization", source.i
 check("hook maps patch targets through pending section normalization", source.includes("const resolvedSection = normalizePendingSection(event.sectionId)"));
 check("hook persists avatar position in resume state", source.includes("avatarPos: next"));
 check("hook restores avatar position from resume snapshots", source.includes("nextResume?.avatarPos"));
+check("default layout config includes link style", source.includes('linkStyle: { mode: "default", color: "#0645ad", underline: true }'));
 check("hook persists layout config in resume state", source.includes("layoutConfig: next"));
 check("hook restores layout config from resume snapshots", source.includes("nextResume?.layoutConfig"));
 

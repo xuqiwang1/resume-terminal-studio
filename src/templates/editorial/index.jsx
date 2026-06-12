@@ -44,6 +44,13 @@ export default function EditorialTemplate({ resume, ctx }) {
   const fc = (sec, idx, field) => fieldClass(selectedField, sec, idx, field);
   const click = (e, fid) => { e.stopPropagation(); onFieldClick?.(fid); };
   const fieldStyle = (fid) => fieldStyles[fid] || {};
+  const linkStyleFor = (fid) => {
+    const style = fieldStyles[fid] || {};
+    return {
+      "--r-link-color": style.linkColor || undefined,
+      "--r-link-decoration": style.linkUnderline === false ? "none" : undefined
+    };
+  };
   const withFieldStyle = (fid, base = {}) => ({ ...base, ...fieldStyle(fid) });
   const patchFor = (fid) =>
     patchAnimation?.fieldId === fid ? patchAnimation : null;
@@ -77,10 +84,10 @@ export default function EditorialTemplate({ resume, ctx }) {
           {resume.name}
         </h2>
         <p className={fc("header", null, "title")} onClick={(e) => click(e, fieldId("header", null, "title"))} style={withFieldStyle(fieldId("header", null, "title"), { fontSize: "var(--r-fs-body, 12px)" })}>
-          {resume.title}
+          <RichText value={resume.title} fieldId={fieldId("header", null, "title")} linkStyle={linkStyleFor(fieldId("header", null, "title"))} />
         </p>
         <p className={fc("header", null, "contact")} onClick={(e) => click(e, fieldId("header", null, "contact"))} style={withFieldStyle(fieldId("header", null, "contact"), { fontSize: "var(--r-fs-muted, 11px)" })}>
-          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} />
+          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} linkStyle={linkStyleFor(fieldId("header", null, "contact"))} />
         </p>
       </div>
 
@@ -142,7 +149,7 @@ export default function EditorialTemplate({ resume, ctx }) {
                 onClick={(e) => click(e, fieldId("skills", index, "category"))}
                 style={withFieldStyle(fieldId("skills", index, "category"), { fontSize: "var(--r-fs-body, 12px)" })}
               >
-                {item.category}
+                <RichText value={item.category} fieldId={fieldId("skills", index, "category")} linkStyle={linkStyleFor(fieldId("skills", index, "category"))} />
               </strong>
               <p
                 className={fc("skills", index, "content")}
@@ -151,7 +158,7 @@ export default function EditorialTemplate({ resume, ctx }) {
               >
                 {patchFor(fieldId("skills", index, "content"))?.active
                   ? renderAnimated(fieldId("skills", index, "content"), item.content)
-                  : <RichText value={item.content} fieldId={fieldId("skills", index, "content")} />}
+                  : <RichText value={item.content} fieldId={fieldId("skills", index, "content")} linkStyle={linkStyleFor(fieldId("skills", index, "content"))} />}
               </p>
             </div>
           ))}
@@ -167,7 +174,7 @@ export default function EditorialTemplate({ resume, ctx }) {
           return (
             <div className="resume-card" key={`${item.company}-${item.date}`}>
               <strong className={fc("experience", index, "role")} onClick={(e) => click(e, fieldId("experience", index, "role"))} style={fieldStyle(fieldId("experience", index, "role"))}>
-                {item.role} · {item.company}
+                <RichText value={item.role} fieldId={fieldId("experience", index, "role")} linkStyle={linkStyleFor(fieldId("experience", index, "role"))} />{item.role && item.company ? " · " : ""}<RichText value={item.company} fieldId={fieldId("experience", index, "company")} linkStyle={linkStyleFor(fieldId("experience", index, "company"))} />
               </strong>
               <span className={fc("experience", index, "date")} onClick={(e) => click(e, fieldId("experience", index, "date"))} style={fieldStyle(fieldId("experience", index, "date"))}>{item.date}</span>
               <div className={`${fc("experience", index, "details")} editorial-structured-body ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
@@ -189,10 +196,10 @@ export default function EditorialTemplate({ resume, ctx }) {
           return (
             <div className="resume-card" key={`${item.name}-${item.date}`}>
               <strong className={fc("projects", index, "name")} onClick={(e) => click(e, fieldId("projects", index, "name"))} style={fieldStyle(fieldId("projects", index, "name"))}>
-                {item.name}
+                <RichText value={item.name} fieldId={fieldId("projects", index, "name")} linkStyle={linkStyleFor(fieldId("projects", index, "name"))} />
               </strong>
               <span className={fc("projects", index, "role")} onClick={(e) => click(e, fieldId("projects", index, "role"))} style={fieldStyle(fieldId("projects", index, "role"))}>
-                {item.role} · {item.date}
+                <RichText value={item.role} fieldId={fieldId("projects", index, "role")} linkStyle={linkStyleFor(fieldId("projects", index, "role"))} />{item.role && item.date ? " · " : ""}{item.date}
               </span>
               <div className={`${fc("projects", index, "details")} editorial-structured-body ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
                 {detailsPatch?.active
@@ -211,7 +218,7 @@ export default function EditorialTemplate({ resume, ctx }) {
             <p className={fc("summary", null, "text")} onClick={(e) => click(e, fieldId("summary", null, "text"))} style={{ whiteSpace: "pre-wrap", ...fieldStyle(fieldId("summary", null, "text")) }}>
               {patchFor(fieldId("summary", null, "text"))?.active
                 ? renderAnimated(fieldId("summary", null, "text"), summaryDraft ?? resume.summary)
-                : <RichText value={summaryDraft ?? resume.summary} fieldId={fieldId("summary", null, "text")} />}
+                : <RichText value={summaryDraft ?? resume.summary} fieldId={fieldId("summary", null, "text")} linkStyle={linkStyleFor(fieldId("summary", null, "text"))} />}
             </p>
           </div>
         </section>

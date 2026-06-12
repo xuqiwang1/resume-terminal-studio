@@ -11,6 +11,7 @@ function check(name, cond) {
 
 const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
 const previewSource = fs.readFileSync(new URL("./components/ResumePreview.jsx", import.meta.url), "utf8");
+const printSource = fs.readFileSync(new URL("./components/PrintView.jsx", import.meta.url), "utf8");
 const hookSource = fs.readFileSync(new URL("./hooks/useResumeStudio.js", import.meta.url), "utf8");
 const constantsSource = fs.readFileSync(new URL("./lib/a4Page.js", import.meta.url), "utf8");
 
@@ -20,6 +21,8 @@ check("App export uses shared A4 height", appSource.includes("A4_PAGE_HEIGHT_PX"
 check("App export blocks overflow before exporting", appSource.includes("ExportPreflightError"));
 check("App export no longer auto-compresses content", !appSource.includes("fitSinglePage"));
 check("preview uses shared A4 constants", previewSource.includes("A4_PAGE_HEIGHT_PX") && previewSource.includes("A4_PAGE_WIDTH_PX"));
+check("ResumePreview applies link style vars", previewSource.includes("buildLinkStyleVars(layoutConfig?.linkStyle)"));
+check("PrintView applies link style vars", printSource.includes("buildLinkStyleVars(layoutConfig?.linkStyle)"));
 check("hook no longer exposes hidden auto-fit action", !hookSource.includes("fitSinglePage"));
 
 if (failures > 0) {
@@ -27,4 +30,3 @@ if (failures > 0) {
   process.exit(1);
 }
 console.log("\nAll export/A4 consistency checks passed.");
-

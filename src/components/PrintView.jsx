@@ -1,6 +1,7 @@
 import { forwardRef, useMemo } from "react";
 import { getTemplate } from "../templates/registry";
 import { FONT_OPTIONS, COLOR_SCHEMES } from "./LeftStylePanel";
+import { buildLinkStyleVars } from "../lib/linkStyle";
 
 /**
  * PrintView: A hidden, non-scaled A4 view used exclusively for PDF export.
@@ -32,6 +33,7 @@ const PrintView = forwardRef(function PrintView({
     "--r-fs-heading": `${fontSize.heading}px`,
     "--r-fs-body": `${fontSize.body}px`,
     "--r-fs-muted": `${fontSize.muted}px`,
+    ...buildLinkStyleVars(layoutConfig?.linkStyle),
   };
 
   const ctx = {

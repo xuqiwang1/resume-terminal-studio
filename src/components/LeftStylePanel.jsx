@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { TEMPLATE_REGISTRY } from "../templates/registry";
 import { SECTION_LABELS } from "../hooks/resumeStudioHelpers";
+import { LINK_STYLE_MODES, normalizeLinkStyle } from "../lib/linkStyle";
 
 const FONT_OPTIONS = [
   { id: "serif", label: "宋体", family: "'Noto Serif SC', 'Songti SC', 'SimSun', serif" },
@@ -97,6 +98,7 @@ function ColorChips({ activeColorId, onPickColor }) {
 function DocumentInspector({
   fontId, onFontChange,
   colorId, onColorChange,
+  layoutConfig, onLayoutConfigChange,
   lineHeight, onLineHeightChange,
   sectionGap, onSectionGapChange,
   pagePadding, onPaddingChange,
@@ -144,6 +146,8 @@ function DocumentInspector({
         <label className="lsp-label">配色</label>
         <ColorChips activeColorId={colorId} onPickColor={(c) => onColorChange(c.id)} />
       </div>
+
+      <LinkStyleInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
 
       <div className="lsp-group">
         <label className="lsp-label">密度</label>
@@ -193,6 +197,41 @@ function DocumentInspector({
   );
 }
 
+function LinkStyleInspector({ layoutConfig, onLayoutConfigChange }) {
+  const linkStyle = normalizeLinkStyle(layoutConfig?.linkStyle);
+  const setLinkStyle = (patch) =>
+    onLayoutConfigChange?.({
+      ...layoutConfig,
+      linkStyle: { ...linkStyle, ...patch }
+    });
+
+  return (
+    <div className="lsp-group">
+      <label className="lsp-label">链接样式</label>
+      <ChipGroup>
+        {LINK_STYLE_MODES.map((mode) => (
+          <button
+            key={mode.id}
+            className={`lsp-chip ${linkStyle.mode === mode.id ? "active" : ""}`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setLinkStyle({ mode: mode.id })}
+          >
+            {mode.label}
+          </button>
+        ))}
+      </ChipGroup>
+      <label className="lsp-check">
+        <input
+          type="checkbox"
+          checked={linkStyle.underline}
+          onChange={(e) => setLinkStyle({ underline: e.target.checked })}
+        />
+        显示下划线
+      </label>
+    </div>
+  );
+}
+
 function FieldInspector({
   fontId, colorId, textSelection, selectedField, onApplyInlineStyle, onApplyFieldStyle
 }) {
@@ -238,6 +277,38 @@ function FieldInspector({
           }}
         />
       </div>
+
+      {!textSelection && selectedField ? (
+        <div className="lsp-group">
+          <label className="lsp-label">字段链接</label>
+          <ChipGroup>
+            <button
+              className="lsp-chip"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onApplyFieldStyle?.(selectedField, "linkColor", "#0645ad");
+                onApplyFieldStyle?.(selectedField, "linkUnderline", true);
+              }}
+            >
+              默认蓝色
+            </button>
+            <button
+              className="lsp-chip"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onApplyFieldStyle?.(selectedField, "linkColor", "inherit")}
+            >
+              跟随字段
+            </button>
+            <button
+              className="lsp-chip"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onApplyFieldStyle?.(selectedField, "linkUnderline", false)}
+            >
+              隐藏下划线
+            </button>
+          </ChipGroup>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -370,6 +441,8 @@ export default function LeftStylePanel({
           onFontChange={onFontChange}
           colorId={colorId}
           onColorChange={onColorChange}
+          layoutConfig={layoutConfig}
+          onLayoutConfigChange={onLayoutConfigChange}
           lineHeight={lineHeight}
           onLineHeightChange={onLineHeightChange}
           sectionGap={sectionGap}

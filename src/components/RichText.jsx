@@ -1,7 +1,7 @@
 import { toSegments } from "../lib/richText";
 import { linkifyText } from "../lib/linkifyText";
 
-export default function RichText({ value, fieldId }) {
+export default function RichText({ value, fieldId, linkStyle }) {
   const segments = toSegments(value);
 
   return (
@@ -24,7 +24,7 @@ export default function RichText({ value, fieldId }) {
                 href={part.href}
                 target="_blank"
                 rel="noreferrer"
-                style={style}
+                style={{ ...style, ...linkStyle }}
                 data-rich-link
               >
                 {part.text}

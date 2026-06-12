@@ -39,7 +39,8 @@ import { actionDefinitions, initialActivity, initialResume } from "../data/mockR
 
 const DEFAULT_LAYOUT_CONFIG = {
   education: { schoolAlign: "center", majorAlign: "right" },
-  skills: { layout: "block" }
+  skills: { layout: "block" },
+  linkStyle: { mode: "default", color: "#0645ad", underline: true }
 };
 
 function buildDocumentState({

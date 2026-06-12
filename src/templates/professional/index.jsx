@@ -57,13 +57,20 @@ export default function ProfessionalTemplate({ resume, ctx }) {
   const fc = (sec, idx, field) => fieldClass(selectedField, sec, idx, field);
   const click = (e, fid) => { e.stopPropagation(); onFieldClick?.(fid); };
   const fieldStyle = (fid) => fieldStyles[fid] || {};
+  const linkStyleFor = (fid) => {
+    const style = fieldStyles[fid] || {};
+    return {
+      "--r-link-color": style.linkColor || undefined,
+      "--r-link-decoration": style.linkUnderline === false ? "none" : undefined
+    };
+  };
   const withFieldStyle = (fid, base = {}) => ({ ...base, ...fieldStyle(fid) });
   const patchFor = (fid) => patchAnimation?.fieldId === fid ? patchAnimation : null;
   const renderField = (fid, value, draftFallback) => {
     const patch = patchFor(fid);
     if (patch?.active) return <AnimatedText after={patch.after} active onComplete={() => onPatchAnimationComplete?.(fid)} />;
     const display = draftFallback ?? value;
-    return <RichText value={display} fieldId={fid} />;
+    return <RichText value={display} fieldId={fid} linkStyle={linkStyleFor(fid)} />;
   };
   const renderStructuredField = (fid, value, draftFallback) => {
     const patch = patchFor(fid);
@@ -108,7 +115,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
           onClick={(e) => click(e, fieldId("header", null, "contact"))}
           style={withFieldStyle(fieldId("header", null, "contact"), { fontSize: "var(--r-fs-muted, 11.5px)" })}
         >
-          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} />
+          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} linkStyle={linkStyleFor(fieldId("header", null, "contact"))} />
         </p>
         {resume.title && (
           <p
@@ -116,7 +123,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
             onClick={(e) => click(e, fieldId("header", null, "title"))}
             style={withFieldStyle(fieldId("header", null, "title"), { fontSize: "var(--r-fs-body, 12px)" })}
           >
-            {resume.title}
+            <RichText value={resume.title} fieldId={fieldId("header", null, "title")} linkStyle={linkStyleFor(fieldId("header", null, "title"))} />
           </p>
         )}
       </header>
@@ -187,10 +194,10 @@ export default function ProfessionalTemplate({ resume, ctx }) {
             <div className="pro-entry" key={`${item.company}-${item.date}`}>
               <div className="pro-entry-head pro-experience-head">
                 <strong className={fc("experience", index, "company")} onClick={(e) => click(e, fieldId("experience", index, "company"))} style={fieldStyle(fieldId("experience", index, "company"))}>
-                  {item.company}
+                  <RichText value={item.company} fieldId={fieldId("experience", index, "company")} linkStyle={linkStyleFor(fieldId("experience", index, "company"))} />
                 </strong>
                 <span className={fc("experience", index, "role")} onClick={(e) => click(e, fieldId("experience", index, "role"))} style={fieldStyle(fieldId("experience", index, "role"))}>
-                  {item.role}
+                  <RichText value={item.role} fieldId={fieldId("experience", index, "role")} linkStyle={linkStyleFor(fieldId("experience", index, "role"))} />
                 </span>
                 <span className={`pro-date ${fc("experience", index, "date")}`} onClick={(e) => click(e, fieldId("experience", index, "date"))} style={withFieldStyle(fieldId("experience", index, "date"), { fontSize: "var(--r-fs-muted, 12px)" })}>{item.date}</span>
               </div>
@@ -215,10 +222,10 @@ export default function ProfessionalTemplate({ resume, ctx }) {
             <div className="pro-entry" key={`${item.name}-${item.date}`}>
               <div className="pro-entry-head pro-project-head">
                 <strong className={fc("projects", index, "name")} onClick={(e) => click(e, fieldId("projects", index, "name"))} style={fieldStyle(fieldId("projects", index, "name"))}>
-                  {item.name}
+                  <RichText value={item.name} fieldId={fieldId("projects", index, "name")} linkStyle={linkStyleFor(fieldId("projects", index, "name"))} />
                 </strong>
                 <span className={fc("projects", index, "role")} onClick={(e) => click(e, fieldId("projects", index, "role"))} style={fieldStyle(fieldId("projects", index, "role"))}>
-                  {item.role}
+                  <RichText value={item.role} fieldId={fieldId("projects", index, "role")} linkStyle={linkStyleFor(fieldId("projects", index, "role"))} />
                 </span>
                 <span className={`pro-date ${fc("projects", index, "date")}`} onClick={(e) => click(e, fieldId("projects", index, "date"))} style={withFieldStyle(fieldId("projects", index, "date"), { fontSize: "var(--r-fs-muted, 12px)" })}>
                   {item.date}
@@ -245,7 +252,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
                 onClick={(e) => click(e, fieldId("skills", index, "category"))}
                 style={withFieldStyle(fieldId("skills", index, "category"), { fontSize: "var(--r-fs-body, 12px)" })}
               >
-                {item.category}
+                <RichText value={item.category} fieldId={fieldId("skills", index, "category")} linkStyle={linkStyleFor(fieldId("skills", index, "category"))} />
               </strong>
               <div
                 className={`pro-body ${fc("skills", index, "content")}`}

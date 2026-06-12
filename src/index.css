@@ -387,6 +387,19 @@ button {
   font-weight: 500;
 }
 
+.lsp-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.lsp-check input {
+  margin: 0;
+}
+
 .lsp-color-dot {
   width: 8px;
   height: 8px;
@@ -1001,6 +1014,14 @@ button {
 }
 .template-editorial .editorial-skill-card.skill-inline p {
   margin-top: 0;
+}
+
+.resume-page a[data-rich-link],
+.print-view a[data-rich-link] {
+  color: var(--r-link-color, #0645ad);
+  text-decoration: var(--r-link-decoration, underline);
+  text-decoration-thickness: 0.04em;
+  text-underline-offset: 0.14em;
 }
 
 /* ─── Responsive ─── */

@@ -2,8 +2,9 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { getTemplate } from "../templates/registry";
 import { FONT_OPTIONS, COLOR_SCHEMES } from "./LeftStylePanel";
 import { A4_PAGE_HEIGHT_PX, A4_PAGE_WIDTH_PX } from "../lib/a4Page";
+import { buildLinkStyleVars } from "../lib/linkStyle";
 
-function buildPageStyle({ fontId, colorId, lineHeight, sectionGap, pagePadding, fontSize }) {
+function buildPageStyle({ fontId, colorId, lineHeight, sectionGap, pagePadding, fontSize, layoutConfig }) {
   const font = FONT_OPTIONS.find((f) => f.id === fontId) || FONT_OPTIONS[0];
   const color = COLOR_SCHEMES.find((c) => c.id === colorId) || COLOR_SCHEMES[0];
   return {
@@ -18,6 +19,7 @@ function buildPageStyle({ fontId, colorId, lineHeight, sectionGap, pagePadding, 
     "--r-fs-heading": `${fontSize.heading}px`,
     "--r-fs-body": `${fontSize.body}px`,
     "--r-fs-muted": `${fontSize.muted}px`,
+    ...buildLinkStyleVars(layoutConfig?.linkStyle),
   };
 }
 
@@ -63,7 +65,7 @@ const ResumePreview = forwardRef(function ResumePreview({
   }, [onSelectField]);
 
   const TemplateComponent = template.Component;
-  const pageStyle = buildPageStyle({ fontId, colorId, lineHeight, sectionGap, pagePadding, fontSize });
+  const pageStyle = buildPageStyle({ fontId, colorId, lineHeight, sectionGap, pagePadding, fontSize, layoutConfig });
   const pageHeight = A4_PAGE_HEIGHT_PX;
   const overflowAmount = Math.max(0, Math.ceil(contentHeight - pageHeight));
 
