@@ -28,10 +28,14 @@ check("hook keeps header selection distinct from summary", !source.includes('sec
 check("hook maps intent targets through pending section normalization", source.includes("setWorkingSection(normalizePendingSection(event.target))"));
 check("hook maps patch targets through pending section normalization", source.includes("const resolvedSection = normalizePendingSection(event.sectionId)"));
 check("hook persists avatar position in resume state", source.includes("avatarPos: next"));
-check("hook restores avatar position from resume snapshots", source.includes("nextResume?.avatarPos"));
+check("hook restores avatar position from merged resume snapshots", source.includes("mergedResume?.avatarPos"));
 check("default layout config includes link style", source.includes('linkStyle: { mode: "default", color: "#0645ad", underline: true }'));
 check("hook persists layout config in resume state", source.includes("layoutConfig: next"));
-check("hook restores layout config from resume snapshots", source.includes("nextResume?.layoutConfig"));
+check("hook restores layout config from merged resume snapshots", source.includes("mergedResume?.layoutConfig"));
+check("hook imports guarded snapshot merge helper", source.includes('import { mergeResumeSnapshot } from "./resumeSnapshotMerge";'));
+check("applyResumeSnapshot tracks the current in-memory resume", source.includes("const resumeRef = useRef(initialResume);"));
+check("applyResumeSnapshot merges incoming snapshots instead of replacing resume directly", source.includes("const mergedResume = mergeResumeSnapshot(resumeRef.current, nextResume);"));
+check("applyResumeSnapshot no longer directly sets incoming snapshot as full state", !source.includes("setResume(nextResume);"));
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);

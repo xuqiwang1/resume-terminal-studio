@@ -36,6 +36,7 @@ import {
   syncContextView,
 } from "../lib/fileClient";
 import { actionDefinitions, initialActivity, initialResume } from "../data/mockResume";
+import { mergeResumeSnapshot } from "./resumeSnapshotMerge";
 
 const DEFAULT_LAYOUT_CONFIG = {
   education: { schoolAlign: "center", majorAlign: "right" },
@@ -126,7 +127,12 @@ export function useResumeStudio() {
   }, []);
 
   const prevResumeRef = useRef(null);
+  const resumeRef = useRef(initialResume);
   const initialLoadDone = useRef(false);
+
+  useEffect(() => {
+    resumeRef.current = resume;
+  }, [resume]);
 
   const pushActivityItem = useCallback((item) => {
     setActivityItems((current) => [item, ...current]);
@@ -134,15 +140,16 @@ export function useResumeStudio() {
 
   const applyResumeSnapshot = useCallback((nextResume, options = {}) => {
     const { updatePrevious = false } = options;
+    const mergedResume = mergeResumeSnapshot(resumeRef.current, nextResume);
     if (updatePrevious) {
-      prevResumeRef.current = nextResume;
+      prevResumeRef.current = mergedResume;
     }
-    setResume(nextResume);
-    setFieldStyles(nextResume?.fieldStyles || {});
-    setLayoutConfigState(nextResume?.layoutConfig || DEFAULT_LAYOUT_CONFIG);
-    setAvatarPosState(nextResume?.avatarPos || { x: 0, y: 0 });
-    if (nextResume && nextResume.avatar !== undefined) {
-      setAvatarState(nextResume.avatar ?? null);
+    setResume(mergedResume);
+    setFieldStyles(mergedResume?.fieldStyles || {});
+    setLayoutConfigState(mergedResume?.layoutConfig || DEFAULT_LAYOUT_CONFIG);
+    setAvatarPosState(mergedResume?.avatarPos || { x: 0, y: 0 });
+    if (mergedResume && mergedResume.avatar !== undefined) {
+      setAvatarState(mergedResume.avatar ?? null);
     }
   }, []);
 
