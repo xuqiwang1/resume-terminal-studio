@@ -1,12 +1,40 @@
 import AnimatedText from "../../components/AnimatedText";
 import RichText from "../../components/RichText";
+import DraggableAvatar from "../../components/DraggableAvatar";
 import { fieldId, fieldClass, sectionClass, getDraftText } from "../shared";
+
+function StructuredText({ value }) {
+  const lines = String(value || "").split("\n");
+
+  return (
+    <>
+      {lines.map((line, index) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <span className="editorial-line-gap" key={index} />;
+        const labeled = trimmed.match(/^(【[^】]+】)(.*)$/);
+        if (labeled) {
+          return (
+            <span className="editorial-detail-line" key={index}>
+              <strong>{labeled[1]}</strong>
+              <RichText value={labeled[2]} fieldId={`editorial-structured.${index}`} />
+            </span>
+          );
+        }
+        return (
+          <span className="editorial-detail-line" key={index}>
+            <RichText value={trimmed} fieldId={`editorial-structured.${index}`} />
+          </span>
+        );
+      })}
+    </>
+  );
+}
 
 export default function EditorialTemplate({ resume, ctx }) {
   const {
     activeSectionId, draftState, selectedField, onFieldClick,
     workingSection, patchAnimation, onPatchAnimationComplete,
-    fieldStyles = {}
+    avatar, avatarPos, onAvatarPosChange, layoutConfig, fieldStyles = {}
   } = ctx;
 
   const summaryDraft = getDraftText(draftState, "summary");
@@ -16,6 +44,7 @@ export default function EditorialTemplate({ resume, ctx }) {
   const fc = (sec, idx, field) => fieldClass(selectedField, sec, idx, field);
   const click = (e, fid) => { e.stopPropagation(); onFieldClick?.(fid); };
   const fieldStyle = (fid) => fieldStyles[fid] || {};
+  const withFieldStyle = (fid, base = {}) => ({ ...base, ...fieldStyle(fid) });
   const patchFor = (fid) =>
     patchAnimation?.fieldId === fid ? patchAnimation : null;
 
@@ -30,17 +59,27 @@ export default function EditorialTemplate({ resume, ctx }) {
     "resume-section",
     "resume-header"
   );
+  const skillsLayout = layoutConfig?.skills?.layout || "block";
 
   return (
     <>
       <div className={headerClass}>
-        <h2 className={fc("header", null, "name")} onClick={(e) => click(e, fieldId("header", null, "name"))} style={fieldStyle(fieldId("header", null, "name"))}>
+        {avatar && (
+          <DraggableAvatar
+            src={avatar}
+            position={avatarPos}
+            onPositionChange={onAvatarPosChange}
+            size={64}
+            className="editorial-avatar-topright"
+          />
+        )}
+        <h2 className={fc("header", null, "name")} onClick={(e) => click(e, fieldId("header", null, "name"))} style={withFieldStyle(fieldId("header", null, "name"), { fontSize: "var(--r-fs-heading, 22px)" })}>
           {resume.name}
         </h2>
-        <p className={fc("header", null, "title")} onClick={(e) => click(e, fieldId("header", null, "title"))} style={fieldStyle(fieldId("header", null, "title"))}>
+        <p className={fc("header", null, "title")} onClick={(e) => click(e, fieldId("header", null, "title"))} style={withFieldStyle(fieldId("header", null, "title"), { fontSize: "var(--r-fs-body, 12px)" })}>
           {resume.title}
         </p>
-        <p className={fc("header", null, "contact")} onClick={(e) => click(e, fieldId("header", null, "contact"))} style={fieldStyle(fieldId("header", null, "contact"))}>
+        <p className={fc("header", null, "contact")} onClick={(e) => click(e, fieldId("header", null, "contact"))} style={withFieldStyle(fieldId("header", null, "contact"), { fontSize: "var(--r-fs-muted, 11px)" })}>
           <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} />
         </p>
       </div>
@@ -55,8 +94,17 @@ export default function EditorialTemplate({ resume, ctx }) {
                 onClick={(e) => click(e, fieldId("education", index, "school"))}
                 style={fieldStyle(fieldId("education", index, "school"))}
               >
-                {item.school}{item.tag ? `（${item.tag}）` : ""}
+                {item.school}
               </strong>
+              {item.tag ? (
+                <em
+                  className={fc("education", index, "tag")}
+                  onClick={(e) => click(e, fieldId("education", index, "tag"))}
+                  style={fieldStyle(fieldId("education", index, "tag"))}
+                >
+                  {item.tag}
+                </em>
+              ) : null}
               <span
                 className={fc("education", index, "date")}
                 onClick={(e) => click(e, fieldId("education", index, "date"))}
@@ -67,9 +115,17 @@ export default function EditorialTemplate({ resume, ctx }) {
               <p
                 className={fc("education", index, "major")}
                 onClick={(e) => click(e, fieldId("education", index, "major"))}
-                style={fieldStyle(fieldId("education", index, "major"))}
+                style={withFieldStyle(fieldId("education", index, "major"), { fontSize: "var(--r-fs-body, 12px)" })}
               >
-                {[item.degree, item.major].filter(Boolean).join(" · ")}
+                <span
+                  className={fc("education", index, "degree")}
+                  onClick={(e) => click(e, fieldId("education", index, "degree"))}
+                  style={fieldStyle(fieldId("education", index, "degree"))}
+                >
+                  {item.degree}
+                </span>
+                {item.degree && item.major ? " · " : ""}
+                {item.major}
               </p>
             </div>
           ))}
@@ -80,18 +136,18 @@ export default function EditorialTemplate({ resume, ctx }) {
         <section className={sectionClass(activeSectionId, workingSection, "skills")} data-section="skills">
           <h3>专业技能</h3>
           {resume.skills.map((item, index) => (
-            <div className="resume-card" key={`${item.category}-${index}`}>
+            <div className={`resume-card editorial-skill-card${skillsLayout === "inline" ? " skill-inline" : ""}`} key={`${item.category}-${index}`}>
               <strong
                 className={fc("skills", index, "category")}
                 onClick={(e) => click(e, fieldId("skills", index, "category"))}
-                style={fieldStyle(fieldId("skills", index, "category"))}
+                style={withFieldStyle(fieldId("skills", index, "category"), { fontSize: "var(--r-fs-body, 12px)" })}
               >
                 {item.category}
               </strong>
               <p
                 className={fc("skills", index, "content")}
                 onClick={(e) => click(e, fieldId("skills", index, "content"))}
-                style={{ whiteSpace: "pre-wrap", ...fieldStyle(fieldId("skills", index, "content")) }}
+                style={withFieldStyle(fieldId("skills", index, "content"), { whiteSpace: "pre-wrap", fontSize: "var(--r-fs-body, 12px)" })}
               >
                 {patchFor(fieldId("skills", index, "content"))?.active
                   ? renderAnimated(fieldId("skills", index, "content"), item.content)
@@ -114,11 +170,11 @@ export default function EditorialTemplate({ resume, ctx }) {
                 {item.role} · {item.company}
               </strong>
               <span className={fc("experience", index, "date")} onClick={(e) => click(e, fieldId("experience", index, "date"))} style={fieldStyle(fieldId("experience", index, "date"))}>{item.date}</span>
-              <p className={`${fc("experience", index, "details")} ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={fieldStyle(detailsFid)}>
+              <div className={`${fc("experience", index, "details")} editorial-structured-body ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
                 {detailsPatch?.active
                   ? renderAnimated(detailsFid, showDraft ? experienceDraft : item.details)
-                  : <RichText value={showDraft ? experienceDraft : item.details} fieldId={detailsFid} />}
-              </p>
+                  : <StructuredText value={showDraft ? experienceDraft : item.details} />}
+              </div>
             </div>
           );
         })}
@@ -138,11 +194,11 @@ export default function EditorialTemplate({ resume, ctx }) {
               <span className={fc("projects", index, "role")} onClick={(e) => click(e, fieldId("projects", index, "role"))} style={fieldStyle(fieldId("projects", index, "role"))}>
                 {item.role} · {item.date}
               </span>
-              <p className={`${fc("projects", index, "details")} ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={fieldStyle(detailsFid)}>
+              <div className={`${fc("projects", index, "details")} editorial-structured-body ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
                 {detailsPatch?.active
                   ? renderAnimated(detailsFid, showDraft ? projectsDraft : item.details)
-                  : <RichText value={showDraft ? projectsDraft : item.details} fieldId={detailsFid} />}
-              </p>
+                  : <StructuredText value={showDraft ? projectsDraft : item.details} />}
+              </div>
             </div>
           );
         })}

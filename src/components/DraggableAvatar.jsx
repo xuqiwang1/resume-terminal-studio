@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export default function DraggableAvatar({ src, position, onPositionChange, size = 56 }) {
+export default function DraggableAvatar({ src, position, onPositionChange, size = 56, className = "" }) {
   const ref = useRef(null);
   const dragging = useRef(false);
   const origin = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
@@ -49,7 +49,7 @@ export default function DraggableAvatar({ src, position, onPositionChange, size 
   return (
     <div
       ref={ref}
-      className="draggable-avatar"
+      className={`draggable-avatar ${className}`.trim()}
       style={{
         width: size,
         height: size,

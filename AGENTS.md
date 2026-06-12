@@ -19,3 +19,11 @@ This repository builds **Resume Studio**, a local-first desktop resume workbench
 - Keep the desktop app, landing site, and README separate.
 - Preserve local-first privacy boundaries; never commit real resume files, source materials, history, `dist/`, `release/`, or local workspace data.
 - For layout/style fixes, change the source code and run tests/builds. Do not patch the packaged app bundle directly.
+- Read `HANDOFF.md` before resuming long-running app work; update it when completing or deferring roadmap items.
+
+## Verification
+
+- Run `npm test` before claiming source changes are complete.
+- Run `npm run build` after React, CSS, template, or export-flow changes.
+- Run `npm run install:desktop` only when the user needs the installed macOS app refreshed.
+- After installing the desktop app, open `/Applications/Resume Studio.app` so the user sees the new build.

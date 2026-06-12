@@ -7,6 +7,7 @@ import HistoryPanel from "./components/HistoryPanel";
 import { useResumeStudio } from "./hooks/useResumeStudio";
 import { useTextSelection } from "./hooks/useTextSelection";
 import { exportPdf, isDesktopApp } from "./lib/fileClient";
+import { A4_PAGE_HEIGHT_PX, A4_OVERFLOW_TOLERANCE_PX } from "./lib/a4Page";
 import { useEffect, useRef } from "react";
 
 export default function App() {
@@ -37,12 +38,19 @@ export default function App() {
     layoutConfig, setLayoutConfig,
     applyInlineStyle,
     applyFieldStyle,
-    fitSinglePage,
     fieldStyles,
   } = useResumeStudio();
 
   const handleExportPdf = async () => {
-    await fitSinglePage(() => printPageRef.current || resumePageRef.current);
+    const target = printPageRef.current || resumePageRef.current;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const exportHeight = target?.scrollHeight || 0;
+    if (exportHeight > A4_PAGE_HEIGHT_PX + A4_OVERFLOW_TOLERANCE_PX) {
+      const overflow = Math.ceil(exportHeight - A4_PAGE_HEIGHT_PX);
+      const error = new Error(`当前内容超出 A4 约 ${overflow}px，请删减内容或手动降低密度后再导出。`);
+      error.name = "ExportPreflightError";
+      throw error;
+    }
     return exportPdf();
   };
 
@@ -50,21 +58,13 @@ export default function App() {
     window.resumeStudioDebug = {
       fitAndMeasure: async () => {
         const target = printPageRef.current || resumePageRef.current;
-        const before = target?.scrollHeight || 0;
-        let fit = await fitSinglePage(() => printPageRef.current || resumePageRef.current);
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        let finalTarget = printPageRef.current || resumePageRef.current;
-        let after = finalTarget?.scrollHeight || 0;
-        if (after > 1125) {
-          fit = await fitSinglePage(() => printPageRef.current || resumePageRef.current);
-          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          finalTarget = printPageRef.current || resumePageRef.current;
-          after = finalTarget?.scrollHeight || 0;
-        }
+        const finalTarget = printPageRef.current || resumePageRef.current;
+        const scrollHeight = finalTarget?.scrollHeight || 0;
         return {
-          fit,
-          before,
-          after,
+          fitsA4: scrollHeight <= A4_PAGE_HEIGHT_PX + A4_OVERFLOW_TOLERANCE_PX,
+          scrollHeight,
+          overflow: Math.max(0, Math.ceil(scrollHeight - A4_PAGE_HEIGHT_PX)),
           clientHeight: finalTarget?.clientHeight || 0,
           width: finalTarget?.getBoundingClientRect().width || 0,
           height: finalTarget?.getBoundingClientRect().height || 0,
@@ -88,7 +88,7 @@ export default function App() {
     return () => {
       delete window.resumeStudioDebug;
     };
-  }, [fitSinglePage]);
+  }, []);
 
   return (
     <div className="app-shell">

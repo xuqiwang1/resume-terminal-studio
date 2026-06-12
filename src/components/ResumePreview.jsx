@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { getTemplate } from "../templates/registry";
 import { FONT_OPTIONS, COLOR_SCHEMES } from "./LeftStylePanel";
+import { A4_PAGE_HEIGHT_PX, A4_PAGE_WIDTH_PX } from "../lib/a4Page";
 
 function buildPageStyle({ fontId, colorId, lineHeight, sectionGap, pagePadding, fontSize }) {
   const font = FONT_OPTIONS.find((f) => f.id === fontId) || FONT_OPTIONS[0];
@@ -63,7 +64,8 @@ const ResumePreview = forwardRef(function ResumePreview({
 
   const TemplateComponent = template.Component;
   const pageStyle = buildPageStyle({ fontId, colorId, lineHeight, sectionGap, pagePadding, fontSize });
-  const pageHeight = Math.max(1123, contentHeight);
+  const pageHeight = A4_PAGE_HEIGHT_PX;
+  const overflowAmount = Math.max(0, Math.ceil(contentHeight - pageHeight));
 
   const ctx = {
     activeSectionId, draftState, selectedField,
@@ -85,11 +87,11 @@ const ResumePreview = forwardRef(function ResumePreview({
 
     if (zoom === "fit") {
       // Fit vertically: leave 80px padding (canvas has 36px * 2 = 72px padding, plus safety margin)
-      const verticalScale = (containerHeight - 80) / 1123;
+      const verticalScale = (containerHeight - 80) / A4_PAGE_HEIGHT_PX;
       setScale(Math.max(0.2, Math.min(2.0, verticalScale)));
     } else if (zoom === "width") {
       // Fit horizontally: leave a small margin so the page nearly fills the column
-      const horizontalScale = (containerWidth - 24) / 794;
+      const horizontalScale = (containerWidth - 24) / A4_PAGE_WIDTH_PX;
       setScale(Math.max(0.2, Math.min(2.0, horizontalScale)));
     } else if (typeof zoom === "number") {
       setScale(zoom);
@@ -116,9 +118,9 @@ const ResumePreview = forwardRef(function ResumePreview({
     let frame = null;
     const sync = () => {
       frame = null;
-      const scaledA4Height = 1123 * scale;
+      const scaledA4Height = A4_PAGE_HEIGHT_PX * scale;
       const visiblePage = Math.max(1, Math.floor(canvas.scrollTop / Math.max(1, scaledA4Height)) + 1);
-      const pageCount = Math.max(1, Math.ceil(contentHeight / 1123));
+      const pageCount = Math.max(1, Math.ceil(contentHeight / A4_PAGE_HEIGHT_PX));
       onViewChange?.({
         visiblePage,
         pageCount,
@@ -145,7 +147,7 @@ const ResumePreview = forwardRef(function ResumePreview({
         <div
           className="resume-page-wrapper"
           style={{
-            width: `${794 * scale}px`,
+            width: `${A4_PAGE_WIDTH_PX * scale}px`,
             height: `${pageHeight * scale}px`,
             position: "relative",
             overflow: "visible",
@@ -162,7 +164,8 @@ const ResumePreview = forwardRef(function ResumePreview({
               top: "0",
               transform: `translate(-50%, 0) scale(${scale})`,
               transformOrigin: "top center",
-              margin: 0
+              margin: 0,
+              height: `${pageHeight}px`
             }}
           >
             <TemplateComponent resume={resume} ctx={ctx} />
@@ -172,6 +175,9 @@ const ResumePreview = forwardRef(function ResumePreview({
 
       {/* Floating Zoom Controls */}
       <div className="canvas-zoom-controls" onClick={(e) => e.stopPropagation()}>
+        {overflowAmount > 0 && (
+          <span className="page-overflow-warning">超出 A4 {overflowAmount}px</span>
+        )}
         <button
           className="zoom-btn"
           onClick={() => {

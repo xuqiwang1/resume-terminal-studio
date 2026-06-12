@@ -26,6 +26,15 @@ check("projects share the three-column alignment model", css.includes(".pro-proj
 check("professional header participates in active section state", template.includes('sectionClass(activeSectionId, workingSection, "header")'));
 check("professional structured details render through RichText", template.includes("<RichText value={labeled[2]}") && template.includes("<RichText value={trimmed}"));
 check("professional contact renders through RichText", template.includes('<RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} />'));
+check("education school column defaults centered", template.includes('const schoolAlign = eduLayout.schoolAlign || "center"'));
+check("education rows center school in total row space", css.includes("grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);"));
+check("centered education school field stays on row center", css.includes(".edu-school-center .pro-edu-school { justify-self: center; }"));
+check("education date uses body text styling", css.includes(".pro-edu-date") && css.includes("font-size: var(--r-fs-body, 12px);"));
+check("education date inline style uses body size", template.includes('fieldId("education", index, "date"), { fontSize: "var(--r-fs-body, 12px)" }'));
+check("education date inline style does not use muted size", !template.includes('fieldId("education", index, "date"), { fontSize: "var(--r-fs-muted'));
+check("education school uses body text styling", css.includes(".pro-edu-school strong") && css.includes("color: var(--r-body, #333);"));
+check("education major uses body text styling", css.includes(".pro-edu-major") && css.includes("font-size: var(--r-fs-body, 12px);"));
+check("education tag is inline body text, not a badge", css.includes(".pro-edu-tag") && css.includes("border: none;"));
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);

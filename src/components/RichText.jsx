@@ -32,13 +32,39 @@ export default function RichText({ value, fieldId }) {
             );
           }
 
-          return (
-            <span key={key} style={style}>
-              {part.text}
+          return splitMetricText(part.text).map((metricPart, k) => (
+            <span
+              key={`${key}-${k}`}
+              style={metricPart.metric ? { ...style, fontWeight: 700 } : style}
+              data-rich-metric={metricPart.metric ? "true" : undefined}
+            >
+              {metricPart.text}
             </span>
-          );
+          ));
         });
       })}
     </span>
   );
+}
+
+const METRIC_RE = /(\d+(?:\.\d+)?(?:\s?[-–]\s?\d+(?:\.\d+)?)?(?:\s?(?:%|w|W|万|亿|条|个|个月|月|小时|分钟|倍|分|年|次|套|张|人|天))?)/g;
+
+function splitMetricText(text) {
+  const parts = [];
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(METRIC_RE)) {
+    const start = match.index ?? 0;
+    if (start > lastIndex) {
+      parts.push({ text: text.slice(lastIndex, start), metric: false });
+    }
+    parts.push({ text: match[0], metric: true });
+    lastIndex = start + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ text: text.slice(lastIndex), metric: false });
+  }
+
+  return parts.length ? parts : [{ text, metric: false }];
 }

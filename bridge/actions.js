@@ -143,7 +143,7 @@ export const actionCatalog = {
   },
   pdf: {
     command:
-      "printf '$ resume-agent export-pdf --resume ./resume.json --out ~/Desktop/resume.pdf\\n'; sleep 1; printf 'Rendering A4 preview...\\n'; sleep 1; printf 'Launching PDF renderer...\\n'; sleep 1; printf 'Writing file -> /Users/xuqiwang/Desktop/resume.pdf\\n'; sleep 1; printf '✓ PDF exported successfully\\n'",
+      "printf '$ resume-agent export-pdf --resume ./resume.json --out ~/Desktop/resume.pdf\\n'; sleep 1; printf 'Rendering A4 preview...\\n'; sleep 1; printf 'Launching PDF renderer...\\n'; sleep 1; printf 'Writing file -> ~/Desktop/resume.pdf\\n'; sleep 1; printf '✓ PDF exported successfully\\n'",
     patch() {
       return null;
     },
@@ -163,7 +163,7 @@ export const actionCatalog = {
         state: "Running",
         text: "PDF 渲染器已启动。"
       },
-      "Writing file -> /Users/xuqiwang/Desktop/resume.pdf": {
+      "Writing file -> ~/Desktop/resume.pdf": {
         label: "Write",
         state: "Exporting",
         text: "正在把投递版 PDF 写入桌面路径。"

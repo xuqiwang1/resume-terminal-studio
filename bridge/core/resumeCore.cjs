@@ -20,6 +20,30 @@ function cloneResume(resume) {
   return JSON.parse(JSON.stringify(resume || {}));
 }
 
+function normalizeEvidence(evidence) {
+  if (!Array.isArray(evidence)) return [];
+  return evidence
+    .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+    .map((item) => ({
+      sourcePath: String(item.sourcePath || "").trim(),
+      label: String(item.label || "").trim(),
+      quote: item.quote ? String(item.quote).trim() : ""
+    }))
+    .filter((item) => item.sourcePath && item.label);
+}
+
+function classifyBatchRisk(changes) {
+  if (!Array.isArray(changes) || changes.length === 0) return "low";
+  const hasWholeItemChange = changes.some((change) => {
+    if (!change || typeof change !== "object") return false;
+    if (change.operation === "replace_item" || change.operation === "append_item") return true;
+    return change.operation === "replace_section" && !SCALAR_SECTIONS.includes(change.sectionId);
+  });
+  if (hasWholeItemChange) return "high";
+  if (changes.length > 1) return "medium";
+  return "low";
+}
+
 function getFieldValue(resume, sectionId, index = 0, field) {
   if (sectionId === "name" || sectionId === "summary" || sectionId === "title" || sectionId === "contact") {
     return resume?.[sectionId] || "";
@@ -369,7 +393,7 @@ function createResumeCore({ bus, persistence }) {
     bus.emit("selection.changed", next);
   }
 
-  function proposeSectionEdit({ sessionId, sectionId, content, index = 0, field, bulletIndex }) {
+  function proposeSectionEdit({ sessionId, sectionId, content, index = 0, field, bulletIndex, evidence }) {
     if (!isActiveDocumentBound(activeDocument)) {
       throw new Error("Active document context is required before proposing edits");
     }
@@ -393,14 +417,16 @@ function createResumeCore({ bus, persistence }) {
       bulletIndex: normalized.bulletIndex,
       append: normalized.append,
       before: normalized.before,
-      after: content
+      after: content,
+      riskLevel: "low",
+      evidence: normalizeEvidence(evidence)
     };
     persistence.savePendingPatch(pendingPatch);
     bus.emit("pending.created", pendingPatch);
     return pendingPatch;
   }
 
-  function proposeBatchEdit({ sessionId, title, summary = "", changes }) {
+  function proposeBatchEdit({ sessionId, title, summary = "", changes, evidence, allowHighRisk = false }) {
     if (!isActiveDocumentBound(activeDocument)) {
       throw new Error("Active document context is required before proposing edits");
     }
@@ -409,6 +435,10 @@ function createResumeCore({ bus, persistence }) {
     }
     if (!Array.isArray(changes) || changes.length === 0) {
       throw new Error("Batch edit requires at least one change");
+    }
+    const riskLevel = classifyBatchRisk(changes);
+    if (riskLevel === "high" && !allowHighRisk) {
+      throw new Error("High-risk patch requires allowHighRisk=true because it can replace whole structured resume items");
     }
     const normalizedChanges = changes.map((change) => normalizeBatchChange(resume, change));
     pendingPatch = {
@@ -420,7 +450,9 @@ function createResumeCore({ bus, persistence }) {
       activeResumePath: activeDocument?.activeResumePath,
       title,
       summary,
-      changes: normalizedChanges
+      riskLevel,
+      changes: normalizedChanges,
+      evidence: normalizeEvidence(evidence)
     };
     persistence.savePendingPatch(pendingPatch);
     bus.emit("pending.created", pendingPatch);

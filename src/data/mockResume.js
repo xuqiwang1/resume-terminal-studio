@@ -3,6 +3,12 @@ export const initialResume = {
   title: "AI 产品经理实习生 / 可尽快到岗 / 可实习 3-6 个月",
   contact: "邮箱：demo@resumestudio.local | 电话：138-0000-0000 | 城市：上海",
   avatar: null,
+  avatarPos: { x: 0, y: 0 },
+  fieldStyles: {},
+  layoutConfig: {
+    education: { schoolAlign: "center", majorAlign: "right" },
+    skills: { layout: "block" }
+  },
   summary: "",
   education: [
     {

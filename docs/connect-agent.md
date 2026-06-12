@@ -33,16 +33,16 @@ Resume Studio 这里暴露的是**本地 `stdio` MCP server**，不是远程 HTT
 
 在 `~/.codex/config.toml` 中添加：
 
-当前这台电脑、当前源码仓库可直接复制：
+源码开发版示例：
 
 ```toml
 [mcp_servers.resume-studio]
 type = "stdio"
 command = "node"
-args = ["/Users/xuqiwang/Desktop/终端简历编辑器/bridge/mcp-server.cjs"]
+args = ["/Users/your-name/path/to/resume-terminal-studio/bridge/mcp-server.cjs"]
 
 [mcp_servers.resume-studio.env]
-WORKSPACE_DIR = "/Users/xuqiwang/Desktop/终端简历编辑器/workspace"
+WORKSPACE_DIR = "/Users/your-name/path/to/resume-terminal-studio/workspace"
 ```
 
 已安装 APP 版可直接复制：
@@ -54,7 +54,7 @@ command = "node"
 args = ["/Applications/Resume Studio.app/Contents/Resources/bridge/mcp-server.cjs"]
 
 [mcp_servers.resume-studio.env]
-WORKSPACE_DIR = "/Users/xuqiwang/Documents/ResumeStudio"
+WORKSPACE_DIR = "/Users/your-name/Documents/ResumeStudio"
 ```
 
 通用源码模板：

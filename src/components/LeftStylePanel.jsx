@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { TEMPLATE_REGISTRY } from "../templates/registry";
+import { SECTION_LABELS } from "../hooks/resumeStudioHelpers";
 
 const FONT_OPTIONS = [
   { id: "serif", label: "宋体", family: "'Noto Serif SC', 'Songti SC', 'SimSun', serif" },
@@ -24,15 +25,6 @@ const RULE_STYLES = [
   { id: "none", label: "无" },
 ];
 
-const SECTION_LABELS = {
-  summary: "个人总结",
-  header: "页眉",
-  education: "教育背景",
-  experience: "实习经历",
-  projects: "项目经历",
-  skills: "专业技能",
-};
-
 export { FONT_OPTIONS, COLOR_SCHEMES };
 
 function ChipGroup({ children }) {
@@ -49,19 +41,6 @@ function SliderRow({ label, value, children }) {
   );
 }
 
-function CurrentSelectionSummary({ selectedField, activeSectionId }) {
-  const sectionLabel = SECTION_LABELS[activeSectionId] || "整份文档";
-  return (
-    <div className="lsp-group inspector-current">
-      <label className="lsp-label">当前选择</label>
-      <div className="inspector-current-card">
-        <strong>{selectedField || sectionLabel}</strong>
-        <span>{selectedField ? "字段属性已同步给 MCP context" : "未选中字段，显示文档属性"}</span>
-      </div>
-    </div>
-  );
-}
-
 function TemplatePicker({ templateId, onChangeTemplate }) {
   return (
     <div className="lsp-group">
@@ -72,7 +51,7 @@ function TemplatePicker({ templateId, onChangeTemplate }) {
         onChange={(e) => onChangeTemplate?.(e.target.value)}
       >
         {TEMPLATE_REGISTRY.map((t) => (
-          <option key={t.id} value={t.id}>{t.name} — {t.description}</option>
+          <option key={t.id} value={t.id}>{t.shortName || t.name}</option>
         ))}
       </select>
     </div>
@@ -340,9 +319,7 @@ function SectionInspector({ activeSectionId, layoutConfig, onLayoutConfigChange 
     return (
       <div className="lsp-group">
         <label className="lsp-label">{SECTION_LABELS[activeSectionId]}</label>
-        <div className="inspector-note">
-          当前区块使用名称 / 角色 / 日期三列排列。点击具体字段后可调整字体、字号和颜色。
-        </div>
+        <div className="inspector-note">名称 / 角色 / 日期三列</div>
       </div>
     );
   }
@@ -377,7 +354,6 @@ export default function LeftStylePanel({
   return (
     <aside className="left-style-panel">
       <TemplatePicker templateId={templateId} onChangeTemplate={onChangeTemplate} />
-      <CurrentSelectionSummary selectedField={selectedField} activeSectionId={activeSectionId} />
 
       {hasFieldSelection ? (
         <FieldInspector

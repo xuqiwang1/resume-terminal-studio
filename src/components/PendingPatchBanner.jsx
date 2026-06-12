@@ -1,33 +1,16 @@
+import { useEffect, useState } from "react";
 import { computeTextDiff } from "../lib/textDiff";
+import {
+  formatPendingChangeFields,
+  formatPendingChangeLabel,
+  formatPendingValue,
+  formatSectionLabel
+} from "../hooks/resumeStudioHelpers";
 
-const SECTION_LABELS = {
-  name: "姓名",
-  summary: "个人总结",
-  experience: "工作经历",
-  projects: "项目经历",
-  education: "教育背景",
-  skills: "专业技能",
-  title: "标题",
-  contact: "联系方式"
-};
-
-const FIELD_LABELS = {
-  school: "学校",
-  degree: "学历",
-  major: "专业",
-  date: "时间",
-  tag: "标签",
-  company: "公司",
-  role: "角色",
-  details: "正文",
-  category: "分类",
-  content: "内容"
-};
-
-function DiffText({ before, after }) {
+function DiffText({ before, after, compact = false }) {
   const segments = computeTextDiff(before || "", after || "");
   return (
-    <p className="pending-diff">
+    <p className={`pending-diff${compact ? " compact" : ""}`}>
       {segments.map((seg, i) => {
         if (seg.type === "equal") return <span key={i}>{seg.text}</span>;
         if (seg.type === "delete") {
@@ -47,26 +30,52 @@ function DiffText({ before, after }) {
   );
 }
 
-function formatValue(value) {
-  if (value == null) return "";
-  if (typeof value === "string") return value;
-  return JSON.stringify(value, null, 2);
+function PendingValueBlock({ label, value, sectionId }) {
+  const entries = formatPendingValue(value, sectionId);
+  if (entries.length === 0) return null;
+  return (
+    <div className="pending-value-block">
+      <p className="pending-value-label">{label}</p>
+      <div className="pending-value-content">
+        {entries.map((entry, index) => (
+          <div key={`${entry.label || "text"}-${index}`} className="pending-value-row">
+            {entry.label ? <span>{entry.label}</span> : null}
+            <p>{entry.text}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function changeLabel(change) {
-  const sectionLabel = SECTION_LABELS[change.sectionId] || change.sectionId;
-  if (change.operation === "append_item") return `新增${sectionLabel}`;
-  if (change.operation === "replace_item") return `替换${sectionLabel}第 ${Number(change.index || 0) + 1} 条`;
-  if (change.operation === "replace_field") {
-    if (change.index == null) return `修改${sectionLabel}`;
-    const fieldLabel = FIELD_LABELS[change.field] || change.field;
-    return `修改${sectionLabel}第 ${Number(change.index || 0) + 1} 条${fieldLabel}`;
-  }
-  if (change.operation === "replace_section" && typeof change.index === "number") {
-    const fieldLabel = FIELD_LABELS[change.field] || change.field;
-    return `改写${sectionLabel}第 ${change.index + 1} 条${fieldLabel}`;
-  }
-  return `改写${sectionLabel}`;
+function PendingChangeCard({ change }) {
+  const fields = formatPendingChangeFields(change);
+  const beforeEntries = formatPendingValue(change.before, change.sectionId);
+  const afterEntries = formatPendingValue(change.after ?? change.value, change.sectionId);
+  const canShowCompactDiff =
+    beforeEntries.length === 1 &&
+    afterEntries.length === 1 &&
+    !beforeEntries[0].label &&
+    !afterEntries[0].label;
+
+  return (
+    <div className="pending-change-card">
+      <div className="pending-change-head">
+        <p className="pending-batch-change-label">{formatPendingChangeLabel(change)}</p>
+        {fields.length ? (
+          <p className="pending-field-list">涉及字段：{fields.join("、")}</p>
+        ) : null}
+      </div>
+      {canShowCompactDiff ? (
+        <DiffText before={beforeEntries[0].text} after={afterEntries[0].text} compact />
+      ) : (
+        <div className="pending-value-grid">
+          <PendingValueBlock label="修改前" value={change.before} sectionId={change.sectionId} />
+          <PendingValueBlock label="修改后" value={change.after ?? change.value} sectionId={change.sectionId} />
+        </div>
+      )}
+    </div>
+  );
 }
 
 function groupBatchChanges(changes = []) {
@@ -77,7 +86,7 @@ function groupBatchChanges(changes = []) {
     if (!group) {
       group = {
         sectionId,
-        label: SECTION_LABELS[sectionId] || sectionId,
+        label: formatSectionLabel(sectionId),
         changes: []
       };
       groups.push(group);
@@ -98,13 +107,10 @@ function BatchPendingView({ pending }) {
           <p className="pending-batch-group-title">{group.label}</p>
           <div className="pending-batch-changes">
             {group.changes.map((change, index) => (
-              <div
+              <PendingChangeCard
                 key={`${group.sectionId}-${change.operation}-${change.index ?? "append"}-${index}`}
-                className="pending-batch-change"
-              >
-                <p className="pending-batch-change-label">{changeLabel(change)}</p>
-                <DiffText before={formatValue(change.before)} after={formatValue(change.after)} />
-              </div>
+                change={change}
+              />
             ))}
           </div>
         </div>
@@ -113,33 +119,119 @@ function BatchPendingView({ pending }) {
   );
 }
 
+function PendingEvidence({ evidence = [] }) {
+  const items = evidence.filter((item) => item?.sourcePath && item?.label);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="pending-evidence">
+      <p className="pending-evidence-title">依据材料</p>
+      <div className="pending-evidence-list">
+        {items.map((item, index) => (
+          <div key={`${item.sourcePath}-${index}`} className="pending-evidence-item">
+            <span className="pending-evidence-path">{item.sourcePath}</span>
+            <span className="pending-evidence-label">{item.label}</span>
+            {item.quote ? <span className="pending-evidence-quote">{item.quote}</span> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatRiskLevel(riskLevel) {
+  if (riskLevel === "high") return "高风险";
+  if (riskLevel === "medium") return "中风险";
+  return "低风险";
+}
+
+function getCheckpointSummary(pending) {
+  const changeCount = pending.kind === "batch" ? pending.changes?.length || 0 : 1;
+  const evidenceCount = pending.evidence?.length || 0;
+  return { changeCount, evidenceCount };
+}
+
 export default function PendingPatchBanner({ pending, onConfirm, onReject }) {
+  const [highRiskAcknowledged, setHighRiskAcknowledged] = useState(false);
+
+  useEffect(() => {
+    setHighRiskAcknowledged(false);
+  }, [pending?.id]);
+
   if (!pending) return null;
 
+  const riskLevel = pending.riskLevel || "low";
+  const isHighRisk = riskLevel === "high";
+  const acceptDisabled = isHighRisk && !highRiskAcknowledged;
+  const checkpoint = getCheckpointSummary(pending);
   const label =
     pending.kind === "batch"
       ? pending.title || "批量改动"
-      : SECTION_LABELS[pending.sectionId] || pending.sectionId;
+      : formatSectionLabel(pending.sectionId);
+
+  const singleChange =
+    pending.kind === "batch"
+      ? null
+      : {
+          operation: "replace_field",
+          sectionId: pending.sectionId,
+          index: pending.index,
+          field: pending.field,
+          before: pending.before,
+          after: pending.after
+        };
 
   return (
     <div className="pending-banner" role="alertdialog" aria-live="polite">
       <div className="pending-banner-head">
-        <span className="pending-kicker">AI 待确认改动</span>
+        <div className="pending-head-main">
+          <span className="pending-kicker">AI 待确认改动</span>
+          <span className={`pending-risk pending-risk-${riskLevel}`}>{formatRiskLevel(riskLevel)}</span>
+        </div>
         <span className="pending-target">{label}</span>
       </div>
+      {riskLevel === "high" ? (
+        <p className="pending-risk-note">本次会替换或新增整条结构化内容，请重点核对范围。</p>
+      ) : null}
       {pending.instruction ? (
         <p className="pending-instruction">指令：{pending.instruction}</p>
       ) : null}
-      {pending.kind === "batch" ? (
-        <BatchPendingView pending={pending} />
-      ) : (
-        <DiffText before={pending.before} after={pending.after} />
-      )}
+      <div className="pending-body">
+        {pending.kind === "batch" ? (
+          <BatchPendingView pending={pending} />
+        ) : (
+          <PendingChangeCard change={singleChange} />
+        )}
+        <PendingEvidence evidence={pending.evidence} />
+      </div>
+      <div className="pending-checkpoints">
+        <div className="pending-checkpoint-row">
+          <span>变更</span>
+          <strong>{checkpoint.changeCount} 项</strong>
+        </div>
+        <div className="pending-checkpoint-row">
+          <span>来源</span>
+          <strong>{checkpoint.evidenceCount > 0 ? `${checkpoint.evidenceCount} 条` : "未标注"}</strong>
+        </div>
+        {checkpoint.evidenceCount === 0 ? (
+          <p className="pending-checkpoint-warning">本次改动没有来源材料标注，请按你的判断核对内容。</p>
+        ) : null}
+        {isHighRisk ? (
+          <label className="pending-risk-confirm">
+            <input
+              type="checkbox"
+              checked={highRiskAcknowledged}
+              onChange={(event) => setHighRiskAcknowledged(event.target.checked)}
+            />
+            <span>已核对整条替换/新增范围</span>
+          </label>
+        ) : null}
+      </div>
       <div className="pending-actions">
         <button className="pending-btn pending-reject" onClick={onReject}>
           拒绝
         </button>
-        <button className="pending-btn pending-accept" onClick={onConfirm}>
+        <button className="pending-btn pending-accept" onClick={onConfirm} disabled={acceptDisabled}>
           接受改动
         </button>
       </div>

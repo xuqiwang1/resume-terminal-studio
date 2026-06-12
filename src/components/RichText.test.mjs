@@ -11,3 +11,7 @@ assert.match(source, /<a\s+/);
 assert.match(source, /target="_blank"/);
 assert.match(source, /rel="noreferrer"/);
 assert.match(source, /data-rich-link/);
+assert.match(source, /METRIC_RE/);
+assert.match(source, /splitMetricText/);
+assert.match(source, /data-rich-metric/);
+assert.match(source, /fontWeight:\s*700/);

@@ -267,38 +267,53 @@ core.setResume({
   skills: [{ category: "Product", content: "old content" }]
 });
 
+const highRiskEducationChanges = [
+  {
+    operation: "replace_item",
+    sectionId: "education",
+    index: 0,
+    value: {
+      school: "北京师范大学",
+      degree: "硕士",
+      major: "社会学",
+      date: "2024.09 - 2027.06",
+      tag: "985"
+    }
+  },
+  {
+    operation: "append_item",
+    sectionId: "education",
+    value: {
+      school: "安徽大学",
+      degree: "本科",
+      major: "社会学",
+      date: "2020.09 - 2024.06",
+      tag: "211"
+    }
+  }
+];
+
+assert.throws(
+  () =>
+    core.proposeBatchEdit({
+      sessionId: "session-1",
+      title: "Fill education",
+      summary: "Replace one entry and append one entry",
+      changes: highRiskEducationChanges
+    }),
+  /High-risk patch requires allowHighRisk=true/i
+);
+
 const batchPending = core.proposeBatchEdit({
   sessionId: "session-1",
   title: "Fill education",
   summary: "Replace one entry and append one entry",
-  changes: [
-    {
-      operation: "replace_item",
-      sectionId: "education",
-      index: 0,
-      value: {
-        school: "北京师范大学",
-        degree: "硕士",
-        major: "社会学",
-        date: "2024.09 - 2027.06",
-        tag: "985"
-      }
-    },
-    {
-      operation: "append_item",
-      sectionId: "education",
-      value: {
-        school: "安徽大学",
-        degree: "本科",
-        major: "社会学",
-        date: "2020.09 - 2024.06",
-        tag: "211"
-      }
-    }
-  ]
+  allowHighRisk: true,
+  changes: highRiskEducationChanges
 });
 
 assert.equal(batchPending.kind, "batch");
+assert.equal(batchPending.riskLevel, "high");
 assert.equal(batchPending.changes.length, 2);
 assert.equal(core.getResume().education.length, 1);
 
@@ -337,6 +352,7 @@ const rejectedBatch = core.proposeBatchEdit({
     }
   ]
 });
+assert.equal(rejectedBatch.riskLevel, "medium");
 
 core.rejectPendingPatch({ sessionId: "session-1", pendingId: rejectedBatch.id });
 assert.equal(core.getResume().summary, "");
@@ -345,17 +361,56 @@ assert.equal(core.getResume().skills[0].content, "old content");
 const scalarBatch = core.proposeBatchEdit({
   sessionId: "session-1",
   title: "Rewrite scalar fields",
+  evidence: [
+    {
+      sourcePath: "materials/project.md",
+      label: "metric source",
+      quote: ""
+    }
+  ],
   changes: [
     { operation: "replace_field", sectionId: "title", value: "New title" },
     { operation: "replace_field", sectionId: "contact", value: "new@example.com" }
   ]
 });
+assert.deepEqual(scalarBatch.evidence, [
+  {
+    sourcePath: "materials/project.md",
+    label: "metric source",
+    quote: ""
+  }
+]);
 assert.equal(scalarBatch.changes[0].sectionId, "title");
 assert.equal(scalarBatch.changes[0].before, "");
 assert.equal(scalarBatch.changes[0].after, "New title");
 core.confirmPendingPatch({ sessionId: "session-1", pendingId: scalarBatch.id });
 assert.equal(core.getResume().title, "New title");
 assert.equal(core.getResume().contact, "new@example.com");
+assert.equal(core.getResume().evidence, undefined);
+
+const evidencePending = core.proposeSectionEdit({
+  sessionId: "session-1",
+  sectionId: "summary",
+  content: "summary with source",
+  evidence: [
+    {
+      sourcePath: "materials/project.md",
+      label: "metric source",
+      quote: ""
+    }
+  ]
+});
+assert.equal(evidencePending.riskLevel, "low");
+assert.deepEqual(core.getPendingPatch().evidence, [
+  {
+    sourcePath: "materials/project.md",
+    label: "metric source",
+    quote: ""
+  }
+]);
+core.confirmPendingPatch({ sessionId: "session-1", pendingId: evidencePending.id });
+assert.equal(core.getResume().summary, "summary with source");
+assert.equal(core.getResume().evidence, undefined);
 
 assert.throws(
   () =>

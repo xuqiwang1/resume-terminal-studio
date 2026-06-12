@@ -115,6 +115,11 @@ function check(name, cond) {
     check("tools/list includes get_materials", toolNames.includes("get_materials"));
     check("tools/list includes propose_edit", toolNames.includes("propose_edit"));
     check("tools/list includes propose_batch_edit", toolNames.includes("propose_batch_edit"));
+    const proposeEditTool = list.result?.tools?.find((tool) => tool.name === "propose_edit");
+    const proposeBatchTool = list.result?.tools?.find((tool) => tool.name === "propose_batch_edit");
+    check("propose_edit schema includes evidence", !!proposeEditTool?.inputSchema?.properties?.evidence);
+    check("propose_batch_edit schema includes evidence", !!proposeBatchTool?.inputSchema?.properties?.evidence);
+    check("propose_batch_edit schema includes high-risk gate", !!proposeBatchTool?.inputSchema?.properties?.allowHighRisk);
     check("MCP agents cannot confirm patches themselves", !toolNames.includes("confirm_patch"));
     check("MCP agents cannot reject patches themselves", !toolNames.includes("reject_patch"));
     check("MCP agents cannot directly set title", !toolNames.includes("set_title"));
@@ -144,19 +149,35 @@ function check(name, cond) {
       name: "propose_edit",
       arguments: {
         sectionId: "name",
-        content: "许起旺"
+        content: "许起旺",
+        evidence: [
+          {
+            sourcePath: "materials/notes.md",
+            label: "Project notes",
+            quote: ""
+          }
+        ]
       }
     });
     const nameResponse = await waitFor(6);
     const nameText = nameResponse.result?.content?.[0]?.text || "";
     check("propose_edit supports name section", nameText.includes('"sectionId": "name"'));
     check("propose_edit for name returns pending confirmation", nameText.includes('"status": "pending_confirmation"'));
+    check("propose_edit reports evidence count", nameText.includes('"evidenceCount": 1'));
 
     send(7, "tools/call", {
       name: "propose_batch_edit",
       arguments: {
         title: "Fill education",
         summary: "Replace one and append one",
+        allowHighRisk: true,
+        evidence: [
+          {
+            sourcePath: "materials/notes.md",
+            label: "Education source",
+            quote: ""
+          }
+        ],
         changes: [
           {
             operation: "replace_item",
@@ -178,6 +199,8 @@ function check(name, cond) {
     check("propose_batch_edit returns pending confirmation", batchText.includes('"status": "pending_confirmation"'));
     check("propose_batch_edit returns batch kind", batchText.includes('"kind": "batch"'));
     check("propose_batch_edit returns title", batchText.includes('"title": "Fill education"'));
+    check("propose_batch_edit reports high risk", batchText.includes('"riskLevel": "high"'));
+    check("propose_batch_edit reports evidence count", batchText.includes('"evidenceCount": 1'));
     check("batch response returns change count", batchText.includes('"changeCount": 1'));
     check("batch response includes sections", batchText.includes('"sections"'));
     check("batch response includes duration", batchText.includes('"durationMs"'));
@@ -195,6 +218,7 @@ function check(name, cond) {
     const scalarBatchText = scalarBatchResponse.result?.content?.[0]?.text || "";
     check("scalar replace_field batch returns request id", scalarBatchResponse.id === 8);
     check("scalar replace_field batch is accepted", scalarBatchText.includes('"status": "pending_confirmation"'));
+    check("scalar replace_field batch reports low risk", scalarBatchText.includes('"riskLevel": "low"'));
     check("scalar replace_field batch reports title section", scalarBatchText.includes('"title"'));
 
     send(9, "tools/call", {

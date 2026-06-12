@@ -27,6 +27,10 @@ check("hook syncs activeResumePath", source.includes("activeResumePath"));
 check("hook keeps header selection distinct from summary", !source.includes('sectionId === "header" ? "summary" : sectionId'));
 check("hook maps intent targets through pending section normalization", source.includes("setWorkingSection(normalizePendingSection(event.target))"));
 check("hook maps patch targets through pending section normalization", source.includes("const resolvedSection = normalizePendingSection(event.sectionId)"));
+check("hook persists avatar position in resume state", source.includes("avatarPos: next"));
+check("hook restores avatar position from resume snapshots", source.includes("nextResume?.avatarPos"));
+check("hook persists layout config in resume state", source.includes("layoutConfig: next"));
+check("hook restores layout config from resume snapshots", source.includes("nextResume?.layoutConfig"));
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);

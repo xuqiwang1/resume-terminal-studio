@@ -132,7 +132,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
               <span
                 className={`pro-edu-date ${fc("education", index, "date")}`}
                 onClick={(e) => click(e, fieldId("education", index, "date"))}
-                style={withFieldStyle(fieldId("education", index, "date"), { fontSize: "var(--r-fs-muted, 11.5px)" })}
+                style={withFieldStyle(fieldId("education", index, "date"), { fontSize: "var(--r-fs-body, 12px)" })}
               >
                 {item.date}
               </span>

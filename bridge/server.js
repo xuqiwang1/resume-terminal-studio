@@ -655,6 +655,9 @@ const server = createServer(async (req, res) => {
           broadcastPending();
           throw new Error("Stale pending patch: active document changed");
         }
+        if (body.resume && typeof body.resume === "object") {
+          core.hydrateResume(body.resume);
+        }
         core.hydratePendingPatch(persistence.loadPendingPatch());
         core.confirmPendingPatch({
           pendingId: body.pendingId

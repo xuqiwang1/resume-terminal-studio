@@ -38,7 +38,7 @@ export default function TopBar({
       setNotice(filePath ? `PDF 已导出` : "已取消导出");
     } catch (err) {
       console.error("PDF export failed:", err);
-      setNotice(`PDF 导出失败：${err.message}`);
+      setNotice(err.name === "ExportPreflightError" ? err.message : `PDF 导出失败：${err.message}`);
     } finally {
       setExporting(false);
     }

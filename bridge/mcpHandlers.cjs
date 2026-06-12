@@ -123,7 +123,8 @@ function createMcpHandlers({
           index: args.index,
           field: args.field,
           bulletIndex: args.bulletIndex,
-          content: args.content
+          content: args.content,
+          evidence: args.evidence || []
         });
         return textContent({
           status: "pending_confirmation",
@@ -131,6 +132,9 @@ function createMcpHandlers({
           sectionId: pending.sectionId,
           index: pending.index,
           field: pending.field,
+          riskLevel: pending.riskLevel || "low",
+          hasEvidence: (pending.evidence || []).length > 0,
+          evidenceCount: (pending.evidence || []).length,
           diff: { before: pending.before, after: pending.after },
           message:
             "已生成待确认的改动草稿，尚未写入简历。请等待用户在 Resume Studio 工作台点击「接受」或「拒绝」。"
@@ -143,7 +147,9 @@ function createMcpHandlers({
           sessionId: activeSession.sessionId,
           title: args.title,
           summary: args.summary,
-          changes: args.changes
+          changes: args.changes,
+          evidence: args.evidence || [],
+          allowHighRisk: Boolean(args.allowHighRisk)
         });
         const durationMs = Date.now() - startedAt;
         const sections = [...new Set((pending.changes || []).map((change) => change.sectionId))];
@@ -153,8 +159,11 @@ function createMcpHandlers({
           pendingId: pending.id,
           title: pending.title,
           summary: pending.summary || "",
+          riskLevel: pending.riskLevel || "low",
           changeCount: pending.changes?.length || 0,
           sections,
+          hasEvidence: (pending.evidence || []).length > 0,
+          evidenceCount: (pending.evidence || []).length,
           durationMs,
           warning: durationMs > 1000 ? "Batch proposal was slower than expected" : "",
           message:

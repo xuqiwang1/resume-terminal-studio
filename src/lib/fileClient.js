@@ -207,11 +207,11 @@ export function subscribePendingUpdates(onPending) {
   return () => source.close();
 }
 
-export async function confirmPendingPatch(pendingId) {
+export async function confirmPendingPatch(pendingId, resume) {
   const response = await fetch(apiUrl("/api/patch/confirm"), {
     method: "POST",
     headers: jsonHeaders(),
-    body: JSON.stringify({ pendingId })
+    body: JSON.stringify({ pendingId, resume })
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));

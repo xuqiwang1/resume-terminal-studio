@@ -139,6 +139,51 @@ try {
   const pendingAfterFirstOpen = await fetch(`${baseUrl}/api/patch/pending`).then((res) => res.json());
   assert.equal(pendingAfterFirstOpen.pending, null);
 
+  const clientEditedResume = {
+    ...firstOpen.payload.document.resume,
+    avatar: "data:image/png;base64,avatar",
+    avatarPos: { x: 12, y: -4 },
+    fieldStyles: {
+      "projects.0.name": { fontWeight: "700" }
+    },
+    layoutConfig: {
+      education: { schoolAlign: "left", majorAlign: "right" },
+      skills: { layout: "inline" }
+    },
+    projects: [{ name: "Manual Project", role: "", date: "", details: "manual edit must survive" }]
+  };
+  fs.writeFileSync(
+    pendingPatchPath,
+    JSON.stringify(
+      {
+        id: "pending-ui-state",
+        kind: "single",
+        sessionId: "session-ui-state",
+        documentId: "file:saved-resume.rts.json",
+        revision: firstOpen.payload.context.document.revision,
+        activeResumePath,
+        sectionId: "summary",
+        before: "saved file summary",
+        after: "AI patched summary"
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  const confirmWithClientState = await postJson(baseUrl, "/api/patch/confirm", {
+    pendingId: "pending-ui-state",
+    resume: clientEditedResume
+  });
+  assert.equal(confirmWithClientState.response.status, 200);
+  assert.equal(confirmWithClientState.payload.resume.summary, "AI patched summary");
+  assert.equal(confirmWithClientState.payload.resume.avatar, clientEditedResume.avatar);
+  assert.deepEqual(confirmWithClientState.payload.resume.avatarPos, clientEditedResume.avatarPos);
+  assert.deepEqual(confirmWithClientState.payload.resume.fieldStyles, clientEditedResume.fieldStyles);
+  assert.deepEqual(confirmWithClientState.payload.resume.layoutConfig, clientEditedResume.layoutConfig);
+  assert.deepEqual(confirmWithClientState.payload.resume.projects, clientEditedResume.projects);
+
   fs.writeFileSync(
     pendingPatchPath,
     JSON.stringify(

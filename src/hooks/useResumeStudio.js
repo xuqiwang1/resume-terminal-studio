@@ -37,14 +37,10 @@ import {
 } from "../lib/fileClient";
 import { actionDefinitions, initialActivity, initialResume } from "../data/mockResume";
 
-const A4_HEIGHT_PX = 297 * 3.78;
-const A4_HEIGHT_TOLERANCE_PX = 2;
-
-function waitForLayout() {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
-  });
-}
+const DEFAULT_LAYOUT_CONFIG = {
+  education: { schoolAlign: "center", majorAlign: "right" },
+  skills: { layout: "block" }
+};
 
 function buildDocumentState({
   mode,
@@ -103,12 +99,9 @@ export function useResumeStudio() {
   const [fontSize, setFontSize] = useState({ heading: 22, body: 12, muted: 11 });
   const [ruleStyle, setRuleStyle] = useState("thick");
   const [avatar, setAvatarState] = useState(initialResume.avatar ?? null);
-  const [avatarPos, setAvatarPos] = useState({ x: 0, y: 0 });
+  const [avatarPos, setAvatarPosState] = useState(initialResume.avatarPos || { x: 0, y: 0 });
   const [fieldStyles, setFieldStyles] = useState(initialResume.fieldStyles || {});
-  const [layoutConfig, setLayoutConfig] = useState({
-    education: { schoolAlign: "center", majorAlign: "right" },
-    skills: { layout: "block" }
-  });
+  const [layoutConfig, setLayoutConfigState] = useState(initialResume.layoutConfig || DEFAULT_LAYOUT_CONFIG);
 
   // Keep avatar in the persisted resume object so it survives save/load and is
   // consistent across templates that read resume.avatar. Avatar is uploaded in
@@ -117,6 +110,18 @@ export function useResumeStudio() {
     const next = value ?? null;
     setAvatarState(next);
     setResume((prev) => ({ ...prev, avatar: next }));
+  }, []);
+
+  const setAvatarPos = useCallback((value) => {
+    const next = value || { x: 0, y: 0 };
+    setAvatarPosState(next);
+    setResume((prev) => ({ ...prev, avatarPos: next }));
+  }, []);
+
+  const setLayoutConfig = useCallback((value) => {
+    const next = value || DEFAULT_LAYOUT_CONFIG;
+    setLayoutConfigState(next);
+    setResume((prev) => ({ ...prev, layoutConfig: next }));
   }, []);
 
   const prevResumeRef = useRef(null);
@@ -133,6 +138,8 @@ export function useResumeStudio() {
     }
     setResume(nextResume);
     setFieldStyles(nextResume?.fieldStyles || {});
+    setLayoutConfigState(nextResume?.layoutConfig || DEFAULT_LAYOUT_CONFIG);
+    setAvatarPosState(nextResume?.avatarPos || { x: 0, y: 0 });
     if (nextResume && nextResume.avatar !== undefined) {
       setAvatarState(nextResume.avatar ?? null);
     }
@@ -451,7 +458,7 @@ export function useResumeStudio() {
     if (!pendingPatch) return;
     setWorkingSection(null);
     try {
-      const result = await confirmPendingPatch(pendingPatch.id);
+      const result = await confirmPendingPatch(pendingPatch.id, resume);
       if (result?.resume) applyResumeSnapshot(result.resume, { updatePrevious: true });
       if (pendingPatch.kind !== "batch") {
         setDiff({ before: pendingPatch.before || "", after: pendingPatch.after || "" });
@@ -475,7 +482,7 @@ export function useResumeStudio() {
     } catch (e) {
       pushActivityItem({ label: "Patch", state: "Error", text: `确认失败：${e.message}` });
     }
-  }, [applyResumeSnapshot, pendingPatch, pushActivityItem]);
+  }, [applyResumeSnapshot, pendingPatch, pushActivityItem, resume]);
 
   const rejectPending = useCallback(async () => {
     if (!pendingPatch) return;
@@ -568,57 +575,6 @@ export function useResumeStudio() {
     });
   };
 
-  const fitSinglePage = useCallback(async (target) => {
-    let currentSectionGap = sectionGap;
-    let currentPagePadding = pagePadding;
-    let currentLineHeight = lineHeight;
-    let currentFontSize = { ...fontSize };
-
-    for (let step = 0; step < 80; step += 1) {
-      await waitForLayout();
-      const element = typeof target === "function" ? target() : target;
-      if (!element) return false;
-
-      const scrollHeight = element.scrollHeight;
-      if (scrollHeight <= A4_HEIGHT_PX + A4_HEIGHT_TOLERANCE_PX) return true;
-
-      let changed = false;
-
-      // 1. Reduce section gap (low cost)
-      if (currentSectionGap > 4) {
-        currentSectionGap = Math.max(4, currentSectionGap - 2);
-        setSectionGap(currentSectionGap);
-        changed = true;
-      }
-      // 2. Reduce page padding (low-medium cost)
-      else if (currentPagePadding > 16) {
-        currentPagePadding = Math.max(16, currentPagePadding - 2);
-        setPagePadding(currentPagePadding);
-        changed = true;
-      }
-      // 3. Reduce line height (medium cost)
-      else if (currentLineHeight > 1.25) {
-        currentLineHeight = Math.max(1.25, currentLineHeight - 0.05);
-        setLineHeight(currentLineHeight);
-        changed = true;
-      }
-      // 4. Reduce font sizes (high cost)
-      else if (currentFontSize.body > 9.5) {
-        currentFontSize.body = Math.max(9.5, currentFontSize.body - 0.5);
-        currentFontSize.muted = Math.max(8, currentFontSize.muted - 0.5);
-        currentFontSize.heading = Math.max(16, currentFontSize.heading - 1);
-        setFontSize({ ...currentFontSize });
-        changed = true;
-      }
-
-      if (!changed) return false;
-    }
-
-    await waitForLayout();
-    const element = typeof target === "function" ? target() : target;
-    return !!element && element.scrollHeight <= A4_HEIGHT_PX + A4_HEIGHT_TOLERANCE_PX;
-  }, [sectionGap, pagePadding, lineHeight, fontSize]);
-
   return {
     resume,
     activeSectionId,
@@ -664,7 +620,6 @@ export function useResumeStudio() {
     layoutConfig, setLayoutConfig,
     applyInlineStyle,
     applyFieldStyle,
-    fitSinglePage,
     fieldStyles,
   };
 }

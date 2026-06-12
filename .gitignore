@@ -30,12 +30,14 @@ workspace/active-resume.json
 workspace/active-resume.bak.json
 workspace/activity-log.ndjson
 workspace/activity-state.json
+workspace/context-state.json
 workspace/selection-state.json
 workspace/pending-patch.json
 workspace/resume-export.html
 workspace/resume-export.pdf
 workspace/.electron-path
 workspace/resume-agent
+workspace/AGENTS.md
 workspace/CLAUDE.md
 workspace/README.md
 workspace/*.rts.json

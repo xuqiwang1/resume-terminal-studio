@@ -63,13 +63,36 @@ const toolDefinitions = [
         content: {
           type: "string",
           description: "The finished, ready-to-use text you wrote for this field. The engine stores it verbatim; it does not rewrite it."
+        },
+        evidence: {
+          type: "array",
+          description: "Optional source materials used to justify this edit. Shown only in the pending review UI, never in the exported resume.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["sourcePath", "label"],
+            properties: {
+              sourcePath: {
+                type: "string",
+                description: "Relative or absolute source material path, e.g. docs/AI写公式样张收集计划.md."
+              },
+              label: {
+                type: "string",
+                description: "Short source reason or fact summary, e.g. 121,760 条线上 Query、100 条样张规划."
+              },
+              quote: {
+                type: "string",
+                description: "Optional short excerpt. Keep it brief."
+              }
+            }
+          }
         }
       }
     }
   },
   {
     name: "propose_batch_edit",
-    description: "Propose one coherent task with multiple structured resume changes. Use this when a meaningful edit spans multiple fields or items, such as filling education, rewriting one project entry, or updating summary plus one skill. This stages one batch pending patch for the user to accept or reject once in the app.\n\nBatch shape contract:\n- name / title / contact / summary are scalar fields: use replace_field or replace_section with a string value; do not pass index or field.\n- education / skills / experience / projects are item arrays: use replace_field with index + field for one sub-field, replace_item with index + object for a whole item, or append_item with object value.\n- experience/projects details values are newline-separated structured text rendered line-by-line by the resume template; keep labeled content like `【成果】...` and stage lines like `阶段｜2024.01-2024.03` on their own lines.",
+    description: "Propose one coherent task with multiple structured resume changes. Use this when a meaningful edit spans multiple fields or items, such as filling education, rewriting one project entry, or updating summary plus one skill. This stages one batch pending patch for the user to accept or reject once in the app.\n\nBatch shape contract:\n- Prefer replace_field for narrow edits.\n- name / title / contact / summary are scalar fields: use replace_field or replace_section with a string value; do not pass index or field.\n- education / skills / experience / projects are item arrays: use replace_field with index + field for one sub-field, replace_item with index + object for a whole item, or append_item with object value.\n- replace_item, append_item, and structured replace_section are high-risk because they replace or add whole resume items; set allowHighRisk=true only when the user explicitly asked for that larger scope.\n- experience/projects details values are newline-separated structured text rendered line-by-line by the resume template; keep labeled content like `【成果】...` and stage lines like `阶段｜2024.01-2024.03` on their own lines.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -82,6 +105,10 @@ const toolDefinitions = [
         summary: {
           type: "string",
           description: "Optional one-line summary of the batch intent."
+        },
+        allowHighRisk: {
+          type: "boolean",
+          description: "Required as true when changes include replace_item, append_item, or structured replace_section. Use only when the user explicitly wants a whole item/section rewritten or appended."
         },
         changes: {
           type: "array",
@@ -110,6 +137,29 @@ const toolDefinitions = [
               },
               value: {
                 description: "String for scalar and sub-field replacements; object for item replacements/appends."
+              }
+            }
+          }
+        },
+        evidence: {
+          type: "array",
+          description: "Optional source materials used to justify the batch edit. Shown only in the pending review UI, never in the exported resume.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["sourcePath", "label"],
+            properties: {
+              sourcePath: {
+                type: "string",
+                description: "Relative or absolute source material path."
+              },
+              label: {
+                type: "string",
+                description: "Short source reason or fact summary."
+              },
+              quote: {
+                type: "string",
+                description: "Optional short excerpt. Keep it brief."
               }
             }
           }
