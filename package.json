@@ -15,7 +15,7 @@
     "demo:patch": "node demo/scripts/propose-demo-patch.mjs",
     "demo:write-patch": "node demo/scripts/write-demo-pending.mjs",
     "demo:render-video": "./node_modules/electron/dist/Electron.app/Contents/MacOS/Electron demo/scripts/render-stage-video.cjs",
-    "test": "node bridge/workspacePath.test.cjs && node bridge/core/core.test.cjs && node bridge/core/patchConflicts.test.cjs && node bridge/bin/auth.test.cjs && node bridge/bin/ingest.test.cjs && node bridge/bin/pending-patch.test.cjs && node bridge/mcp-server.test.cjs && node bridge/contextStore.test.mjs && node bridge/historyStore.test.mjs && node bridge/fileStoreSecurity.test.mjs && node bridge/serverDocumentFlow.test.mjs && node src/lib/linkifyText.test.mjs && node src/lib/linkStyle.test.mjs && node src/lib/styleSettings.test.mjs && node src/lib/sectionOverflow.test.mjs && node src/components/RichText.test.mjs && node src/components/DraggableAvatar.test.mjs && node src/lib/fileClient.test.mjs && node src/hooks/resumeStudioHelpers.test.mjs && node src/hooks/resumeSnapshotMerge.test.mjs && node src/hooks/useResumeStudio.test.mjs && node src/App.export.test.mjs && node src/components/LeftStylePanel.test.mjs && node src/components/PendingPatchBanner.test.mjs && node src/templates/professional/layout.test.cjs && node src/templates/editorial/link-rendering.test.cjs && node src/templates/editorial/layout.test.cjs && node src/templates/classic/layout.test.cjs && node electron/bridgeRuntime.test.cjs",
+    "test": "node bridge/workspacePath.test.cjs && node bridge/core/core.test.cjs && node bridge/core/patchConflicts.test.cjs && node bridge/bin/auth.test.cjs && node bridge/bin/ingest.test.cjs && node bridge/bin/pending-patch.test.cjs && node bridge/mcp-server.test.cjs && node bridge/contextStore.test.mjs && node bridge/historyStore.test.mjs && node bridge/fileStoreSecurity.test.mjs && node bridge/serverDocumentFlow.test.mjs && node src/lib/linkifyText.test.mjs && node src/lib/linkStyle.test.mjs && node src/lib/styleSettings.test.mjs && node src/lib/sectionOverflow.test.mjs && node src/components/RichText.test.mjs && node src/components/DraggableAvatar.test.mjs && node src/lib/fileClient.test.mjs && node src/hooks/resumeStudioHelpers.test.mjs && node src/hooks/resumeSnapshotMerge.test.mjs && node src/hooks/useResumeStudio.test.mjs && node src/App.export.test.mjs && node src/components/LeftStylePanel.test.mjs && node src/components/PendingPatchBanner.test.mjs && node src/templates/professional/layout.test.cjs && node src/templates/editorial/link-rendering.test.cjs && node src/templates/editorial/layout.test.cjs && node src/templates/classic/layout.test.cjs && node electron/bridgeRuntime.test.cjs && node electron/editorialVisualCheck.test.mjs",
     "dev:all": "concurrently \"npm:dev:bridge\" \"npm:dev -- --host 127.0.0.1 --port 4173\"",
     "dev:desktop": "concurrently \"npm:dev -- --host 127.0.0.1 --port 4173\" \"npm:electron\"",
     "electron": "npx wait-on tcp:4173 && ./node_modules/electron/dist/Electron.app/Contents/MacOS/Electron .",
@@ -23,7 +23,8 @@
     "site:build": "node site/scripts/build.mjs",
     "preview": "vite preview",
     "build:desktop": "vite build && electron-builder",
-    "install:desktop": "node tools/install-desktop.mjs"
+    "install:desktop": "node tools/install-desktop.mjs",
+    "verify:visual": "./node_modules/electron/dist/Electron.app/Contents/MacOS/Electron electron/verify-editorial-visual.cjs"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
