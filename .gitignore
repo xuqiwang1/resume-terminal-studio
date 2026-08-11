@@ -26,6 +26,7 @@ prototype/
 demo/workspace/
 
 # Workspace runtime artifacts (generated at runtime, not source)
+workspace/.resume-studio-workspace.json
 workspace/active-resume.json
 workspace/active-resume.bak.json
 workspace/activity-log.ndjson

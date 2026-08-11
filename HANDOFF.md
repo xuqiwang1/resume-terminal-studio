@@ -1,6 +1,6 @@
 # Resume Studio Handoff
 
-Updated: 2026-06-11
+Updated: 2026-08-07
 
 ## Current State
 
@@ -19,6 +19,11 @@ Updated: 2026-06-11
 - Left style panel no longer shows the redundant current-selection summary.
 - Professional education row date/school/tag/major now use body-level styling.
 - Editorial/Apple template now supports avatar, field styles, structured details, and current resume fields.
+- Added the Classic single-column template with under-heading rules and per-template compact A4 style presets.
+- Reduced the Classic template avatar to 64px and enabled drag-to-position behavior.
+- Added a bounded A4 auto-fit toggle that recalculates content density and shares the effective style with PDF export.
+- Auto-fit now solves on an offscreen A4 copy with bounded binary search, then commits the densest safe single-page style once to avoid visible jitter.
+- Professional body text now shares the exact horizontal content edge of each section rule and entry header.
 - Runtime files `workspace/context-state.json` and `workspace/AGENTS.md` are ignored.
 - Agent verification guidance was added to `AGENTS.md`.
 
@@ -35,4 +40,3 @@ Updated: 2026-06-11
 - Run `npm test` for source-level verification.
 - Run `npm run build` after React/CSS/template/export changes.
 - Run `npm run install:desktop` only when the installed macOS app needs to be refreshed for the user.
-

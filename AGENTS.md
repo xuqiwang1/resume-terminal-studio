@@ -8,7 +8,7 @@ This repository builds **Resume Studio**, a local-first desktop resume workbench
 - Do not edit files under `workspace/`, `~/Documents/ResumeStudio/`, `history/`, or `materials/` unless the user explicitly asks for workspace maintenance.
 - Do not run `resume-agent confirm` or `resume-agent reject`.
 - Do not quit, kill, reopen, rebuild, unpack, or patch the installed app unless the user explicitly asks for app development work.
-- For resume content changes, use the MCP flow: `get_context` -> `get_materials` -> `propose_edit` or `propose_batch_edit`.
+- For resume content changes, use the MCP flow: `get_context` -> `get_materials` -> `propose_edit` or `propose_batch_edit`. From a terminal, the equivalent is `node bridge/bin/resume-cli.cjs edit ...`, which stages the same pending patch through `POST /api/patch/propose`.
 - Before proposing edits, verify `get_context.workspaceDiagnostics.aligned` is true. A mismatch means the agent and app are not using the same workspace.
 - Use `propose_edit` for one narrow field/bullet edit. Use `propose_batch_edit` for one coherent multi-field or multi-item task.
 - `propose_edit` supports top-level `name`, `title`, `contact`, and `summary` edits without `index`/`field`.
