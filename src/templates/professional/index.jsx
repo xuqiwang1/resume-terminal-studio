@@ -106,7 +106,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
 
   return (
     <div className="pro-page">
-      <header className={headerClass}>
+      <header className={headerClass} data-section="header">
         {avatar && (
           <DraggableAvatar
             src={avatar}

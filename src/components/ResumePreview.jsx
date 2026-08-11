@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { getTemplate } from "../templates/registry";
 import { A4_PAGE_HEIGHT_PX, A4_PAGE_WIDTH_PX } from "../lib/a4Page";
 import { buildResumePageStyle } from "../lib/resumePageStyle";
+import { formatSectionOverflow, measureSectionOverflow } from "../lib/sectionOverflow";
 
 const AUTO_FIT_MIN_SCALE = 0.76;
 const AUTO_FIT_MAX_SCALE = 1.6;
@@ -14,6 +15,15 @@ function clamp(value, min, max) {
 
 function roundTo(value, step = 0.5) {
   return Math.round(value / step) * step;
+}
+
+// The overflow report is recomputed on every layout pass; without this the new array
+// identity would retrigger the parent effect on each measure.
+function sameSectionReport(a, b) {
+  if (a.length !== b.length) return false;
+  return a.every((section, index) => (
+    section.sectionId === b[index].sectionId && section.overflowPx === b[index].overflowPx
+  ));
 }
 
 function buildAdaptiveStyle({ lineHeight, sectionGap, pagePadding, fontSize }, fitScale) {
@@ -52,10 +62,11 @@ const ResumePreview = forwardRef(function ResumePreview({
   lineHeight, sectionGap, pagePadding, fontSize,
   ruleStyle, avatar, avatarPos, onAvatarPosChange,
   layoutConfig, fieldStyles, onViewChange,
-  autoFit = false, adaptiveStyle = null, onAutoFitChange, onAdaptiveStyleChange
+  autoFit = false, adaptiveStyle = null, onAutoFitChange, onAdaptiveStyleChange, onOverflowChange
 }, ref) {
   const containerRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
+  const [overflowSections, setOverflowSections] = useState([]);
   const fitMeasureRef = useRef(null);
   const fitSearchRef = useRef(null);
   const fitBestRef = useRef(null);
@@ -189,6 +200,24 @@ const ResumePreview = forwardRef(function ResumePreview({
 
   const totalContentHeight = contentHeight + effectiveStyle.pagePadding * 2;
   const overflowAmount = Math.max(0, Math.ceil(totalContentHeight - A4_PAGE_HEIGHT_PX));
+
+  // Attribute the overflow to specific sections. This runs on the visible page after
+  // layout settles, so it reflects the style actually in effect (adaptive when
+  // auto-fit is on). A whole-page number alone does not tell the user what to cut.
+  useEffect(() => {
+    if (autoFit && !fitSettled) return;
+    const sections = overflowAmount > 0
+      ? measureSectionOverflow(containerRef.current, {
+          pageHeight: A4_PAGE_HEIGHT_PX,
+          pagePadding: effectiveStyle.pagePadding
+        })
+      : [];
+    setOverflowSections((current) => (sameSectionReport(current, sections) ? current : sections));
+  }, [autoFit, fitSettled, overflowAmount, effectiveStyle.pagePadding, resume, templateId]);
+
+  useEffect(() => {
+    onOverflowChange?.({ overflowAmount, sections: overflowSections });
+  }, [onOverflowChange, overflowAmount, overflowSections]);
 
   /*
    * Fit against a detached page so the visible A4 never participates in the
@@ -357,7 +386,13 @@ const ResumePreview = forwardRef(function ResumePreview({
       {/* Floating Zoom Controls */}
       <div className="canvas-zoom-controls" onClick={(e) => e.stopPropagation()}>
         {overflowAmount > 0 && (
-          <span className="page-overflow-warning">超出 A4 {overflowAmount}px</span>
+          <span
+            className="page-overflow-warning"
+            title={overflowSections.length ? `超出的部分：${formatSectionOverflow(overflowSections, 8)}` : undefined}
+          >
+            超出 A4 {overflowAmount}px
+            {overflowSections.length ? ` · ${formatSectionOverflow(overflowSections)}` : ""}
+          </span>
         )}
         <button
           className="zoom-btn"

@@ -66,7 +66,7 @@ export default function EditorialTemplate({ resume, ctx }) {
 
   return (
     <>
-      <div className={headerClass}>
+      <div className={headerClass} data-section="header">
         {avatar && (
           <DraggableAvatar
             src={avatar}
@@ -108,6 +108,9 @@ export default function EditorialTemplate({ resume, ctx }) {
                   {item.tag}
                 </em>
               ) : null}
+              {/* tag and date are adjacent inline elements; without this they render as
+                  one run ("GPA 3.8/4.02025.9-2028.6"). Same separator as degree · major. */}
+              {item.tag && item.date ? <span className="edu-sep">·</span> : null}
               <span
                 className={fc("education", index, "date")}
                 onClick={(e) => click(e, fieldId("education", index, "date"))}

@@ -33,6 +33,15 @@ check("shared page style applies link vars", styleSource.includes("buildLinkStyl
 check("PrintView receives adaptive layout values", printSource.includes("adaptiveStyle") && printSource.includes("effectiveStyle"));
 check("App shares adaptive layout with print view", appSource.includes("onAdaptiveStyleChange={setAdaptiveStyle}") && appSource.includes("adaptiveStyle={autoFit ? adaptiveStyle : null}"));
 check("hook no longer exposes hidden auto-fit action", !hookSource.includes("fitSinglePage"));
+check("preview attributes overflow to sections", previewSource.includes("measureSectionOverflow") && previewSource.includes("onOverflowChange"));
+check("overflow badge names the offending sections", previewSource.includes("formatSectionOverflow(overflowSections)"));
+check("export preflight names the offending sections", appSource.includes("formatSectionOverflow(overflowReport.sections"));
+check("debug hook reports section overflow", appSource.includes("overflowSections: overflowReport.sections"));
+check("every section carries a stable id for measurement", (() => {
+  const editorial = fs.readFileSync(new URL("./templates/editorial/index.jsx", import.meta.url), "utf8");
+  const professional = fs.readFileSync(new URL("./templates/professional/index.jsx", import.meta.url), "utf8");
+  return editorial.includes('data-section="header"') && professional.includes('data-section="header"');
+})());
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);

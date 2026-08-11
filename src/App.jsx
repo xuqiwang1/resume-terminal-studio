@@ -8,7 +8,8 @@ import { useResumeStudio } from "./hooks/useResumeStudio";
 import { useTextSelection } from "./hooks/useTextSelection";
 import { exportPdf, isDesktopApp } from "./lib/fileClient";
 import { A4_PAGE_HEIGHT_PX, A4_OVERFLOW_TOLERANCE_PX } from "./lib/a4Page";
-import { useEffect, useRef, useState } from "react";
+import { formatSectionOverflow } from "./lib/sectionOverflow";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export default function App() {
   const desktop = isDesktopApp();
@@ -16,6 +17,8 @@ export default function App() {
   const printPageRef = useRef(null);
   const [autoFit, setAutoFit] = useState(true);
   const [adaptiveStyle, setAdaptiveStyle] = useState(null);
+  const [overflowReport, setOverflowReport] = useState({ overflowAmount: 0, sections: [] });
+  const handleOverflowChange = useCallback((report) => setOverflowReport(report), []);
   const textSelection = useTextSelection(resumePageRef);
   const {
     resume, activeSectionId, flashToken,
@@ -49,7 +52,13 @@ export default function App() {
     const exportHeight = target?.scrollHeight || 0;
     if (exportHeight > A4_PAGE_HEIGHT_PX + A4_OVERFLOW_TOLERANCE_PX) {
       const overflow = Math.ceil(exportHeight - A4_PAGE_HEIGHT_PX);
-      const error = new Error(`当前内容超出 A4 约 ${overflow}px，请删减内容或手动降低密度后再导出。`);
+      // Name the sections responsible: "too long by 32px" is not actionable on its own.
+      const culprits = formatSectionOverflow(overflowReport.sections, 4);
+      const error = new Error(
+        culprits
+          ? `当前内容超出 A4 约 ${overflow}px（${culprits}），请删减这些部分或手动降低密度后再导出。`
+          : `当前内容超出 A4 约 ${overflow}px，请删减内容或手动降低密度后再导出。`
+      );
       error.name = "ExportPreflightError";
       throw error;
     }
@@ -67,6 +76,7 @@ export default function App() {
           fitsA4: scrollHeight <= A4_PAGE_HEIGHT_PX + A4_OVERFLOW_TOLERANCE_PX,
           scrollHeight,
           overflow: Math.max(0, Math.ceil(scrollHeight - A4_PAGE_HEIGHT_PX)),
+          overflowSections: overflowReport.sections,
           clientHeight: finalTarget?.clientHeight || 0,
           width: finalTarget?.getBoundingClientRect().width || 0,
           height: finalTarget?.getBoundingClientRect().height || 0,
@@ -90,7 +100,7 @@ export default function App() {
     return () => {
       delete window.resumeStudioDebug;
     };
-  }, []);
+  }, [overflowReport]);
 
   return (
     <div className="app-shell">
@@ -150,6 +160,7 @@ export default function App() {
           adaptiveStyle={adaptiveStyle}
           onAutoFitChange={setAutoFit}
           onAdaptiveStyleChange={setAdaptiveStyle}
+          onOverflowChange={handleOverflowChange}
           onViewChange={syncView}
         />
       </main>
