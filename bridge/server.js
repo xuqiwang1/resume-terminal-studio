@@ -1,10 +1,9 @@
 import { createServer } from "node:http";
-import { spawn } from "node:child_process";
 import { watch } from "node:fs";
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { actionCatalog } from "./actions.js";
 import runtimeModule from "./core/runtime.cjs";
 import resumeEngine from "./bin/resume-engine.cjs";
 import defaultResumeModule from "./defaultResume.cjs";
@@ -48,6 +47,17 @@ let watchersAttached = false;
 let mutationQueue = Promise.resolve();
 
 const defaultResume = createDefaultResume();
+
+const SECTION_LABELS = {
+  name: "姓名",
+  title: "职位标题",
+  contact: "联系方式",
+  summary: "个人总结",
+  experience: "工作经历",
+  projects: "项目经历",
+  education: "教育经历",
+  skills: "专业技能"
+};
 
 const sendJson = (res, status, data) => {
   res.statusCode = status;
@@ -217,6 +227,8 @@ async function reconcileStartupDocumentBinding() {
   return bindTemplate();
 }
 
+// Stage an agent-proposed edit as a pending patch. This never touches
+// active-resume.json — the user must accept it in the workbench.
 const handleDirectPatch = async (res, patch) => {
   const baseResume = await readActiveResume();
   const { sectionId, after, index, field } = patch;
@@ -227,17 +239,9 @@ const handleDirectPatch = async (res, patch) => {
      sectionId === "title" ? baseResume.title :
      sectionId === "contact" ? baseResume.contact : "");
 
-  const targetLabel =
-    sectionId === "summary" ? "个人总结" :
-    sectionId === "experience" ? "工作经历" :
-    sectionId === "projects" ? "项目经历" : sectionId;
+  const targetLabel = SECTION_LABELS[sectionId] || sectionId;
 
-  writeLine(res, { type: "activity", payload: { label: "Agent", state: "Started", text: `正在重写${targetLabel}…` } });
   writeLine(res, { type: "focus", payload: { sectionId } });
-  await sleep(600);
-
-  writeLine(res, { type: "activity", payload: { label: "Rewrite", state: "Editing", text: `正在生成新的${targetLabel}文案。`, sectionId } });
-  await sleep(800);
 
   const { activeSession, core } = currentRuntime();
   const pending = core.proposeSectionEdit({
@@ -248,15 +252,19 @@ const handleDirectPatch = async (res, patch) => {
     bulletIndex: patch.bulletIndex,
     content: after
   });
-  const finalPatch = pending;
 
-  writeLine(res, { type: "activity", payload: { label: "Patch", state: "Pending", text: `${targetLabel}已生成待确认改动。` } });
-  writeLine(res, { type: "patch", payload: finalPatch });
+  writeLine(res, {
+    type: "activity",
+    payload: { label: "Patch", state: "Pending", text: `${targetLabel}已生成待确认改动。`, sectionId }
+  });
+  writeLine(res, { type: "patch", payload: { ...pending, before } });
   writeLine(res, { type: "pending", payload: pending });
   broadcastPending();
-  await sleep(60);
 
-  writeLine(res, { type: "activity", payload: { label: "Result", state: "Review", text: `${targetLabel}等待用户接受。`, done: true } });
+  writeLine(res, {
+    type: "activity",
+    payload: { label: "Result", state: "Review", text: `${targetLabel}等待用户接受。`, done: true }
+  });
   writeLine(res, { type: "done", payload: { ok: true } });
   res.end();
 };
@@ -709,109 +717,27 @@ const server = createServer(async (req, res) => {
     });
   }
 
-  if (req.method === "POST" && requestPath === "/api/actions") {
+  // The only agent write path: stage a pending patch for user review.
+  // Kept at /api/actions for backwards compatibility with existing CLI/demo callers.
+  if (
+    req.method === "POST" &&
+    (requestPath === "/api/patch/propose" || requestPath === "/api/actions")
+  ) {
     try {
       const body = await readJson(req);
+      const patch = body.patch;
 
-      if (body.action === "direct_patch") {
-        res.statusCode = 200;
-        res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
-        res.setHeader("Cache-Control", "no-cache");
-        res.setHeader("Connection", "keep-alive");
-        await handleDirectPatch(res, body.patch);
-        return;
+      if (!patch || typeof patch !== "object" || !patch.sectionId) {
+        return sendJson(res, 400, {
+          error: "Missing patch: expected { patch: { sectionId, after, index?, field?, bulletIndex? } }"
+        });
       }
-
-      const action = actionCatalog[body.action];
-
-      if (!action) {
-        return sendJson(res, 404, { error: "Unknown action" });
-      }
-
-      const patch = action.patch(body.resume);
 
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
-
-      const child = spawn("/bin/zsh", ["-lc", action.command], { cwd: workspaceDir });
-      let finalResume = body.resume;
-
-      child.stdout.on("data", async (chunk) => {
-        const lines = chunk
-          .toString()
-          .split("\n")
-          .map((line) => line.trim())
-          .filter(Boolean);
-
-        for (const line of lines) {
-          const mapped = action.activityMap[line] || {
-            label: "Terminal",
-            state: "Running",
-            text: line
-          };
-
-          writeLine(res, { type: "activity", payload: mapped });
-
-          if (mapped.sectionId) {
-            writeLine(res, {
-              type: "focus",
-              payload: { sectionId: mapped.sectionId }
-            });
-          }
-
-          if (mapped.emitPatch && patch) {
-            const { activeSession, core } = currentRuntime();
-            const pending = core.proposeSectionEdit({
-              sessionId: activeSession.sessionId,
-              sectionId: patch.sectionId,
-              index: patch.index,
-              field: patch.field,
-              bulletIndex: patch.bulletIndex,
-              content: patch.after
-            });
-            const pendingPatch = pending;
-            writeLine(res, {
-              type: "draft",
-              payload: {
-                sectionId: patch.sectionId,
-                text: patch.after || "",
-                status: "complete"
-              }
-            });
-            writeLine(res, { type: "patch", payload: pendingPatch });
-            writeLine(res, { type: "pending", payload: pending });
-            broadcastPending();
-          }
-
-          if (mapped.done) {
-            writeLine(res, { type: "done", payload: { ok: true } });
-          }
-        }
-      });
-
-      child.stderr.on("data", (chunk) => {
-        writeLine(res, {
-          type: "activity",
-          payload: {
-            label: "stderr",
-            state: "Error",
-            text: chunk.toString()
-          }
-        });
-      });
-
-      child.on("close", (code) => {
-        if (code !== 0) {
-          writeLine(res, {
-            type: "done",
-            payload: { ok: false, code }
-          });
-        }
-        res.end();
-      });
-
+      await handleDirectPatch(res, patch);
       return;
     } catch (error) {
       return sendJson(res, 500, { error: error.message });
@@ -820,6 +746,39 @@ const server = createServer(async (req, res) => {
 
   sendJson(res, 404, { error: "Not found" });
 });
+
+// Discovery file: lets external CLIs locate the running bridge instance
+// (port, token, workspace) instead of guessing a port or workspace path.
+// Stored under ~/.resume-studio/ so it is shared across dev and packaged runs.
+const discoveryPath = path.join(homedir(), ".resume-studio", "runtime.json");
+
+async function publishRuntimeDiscovery(port) {
+  // Skip in tests: they spin up bridges against throwaway temp workspaces and
+  // would otherwise clobber the discovery file a real APP instance published.
+  if (process.env.NODE_ENV === "test" || process.env.RESUME_SKIP_DISCOVERY) return;
+  try {
+    await mkdir(path.dirname(discoveryPath), { recursive: true });
+    await writeFile(
+      discoveryPath,
+      JSON.stringify(
+        {
+          port,
+          baseUrl: `http://127.0.0.1:${port}`,
+          token: configuredToken,
+          workspaceDir,
+          activeResumePath,
+          pid: process.pid,
+          startedAt: new Date().toISOString()
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+  } catch {
+    // Discovery is best-effort; the bridge still works without it.
+  }
+}
 
 export function startBridgeServer(port = configuredPort) {
   if (startupPromise) return startupPromise;
@@ -895,6 +854,11 @@ export function startBridgeServer(port = configuredPort) {
 
     console.log(`Resume bridge listening on http://127.0.0.1:${port}`);
     console.log(`Workspace ready at ${workspaceDir}`);
+
+    // Publish a discovery file so external CLIs can find this running instance
+    // (port + token + workspace) without guessing. Written to a stable
+    // user-level location so it works for both dev and packaged app runs.
+    await publishRuntimeDiscovery(port);
 
     return {
       port,

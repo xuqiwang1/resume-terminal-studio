@@ -27,6 +27,7 @@ async function postJson(baseUrl, pathname, body) {
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "resume-server-flow-"));
 process.env.WORKSPACE_DIR = tmp;
+process.env.RESUME_SKIP_DISCOVERY = "1";
 
 const activeResumePath = path.join(tmp, "active-resume.json");
 const contextStatePath = path.join(tmp, "context-state.json");

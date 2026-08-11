@@ -45,11 +45,12 @@ const DEFAULT_CONTEXT_STATE = {
   }
 };
 
-export async function ensureWorkspace() {
+export async function ensureWorkspace({ initialize = true } = {}) {
   await mkdir(workspaceDir, { recursive: true });
   await mkdir(materialsDir, { recursive: true });
   await mkdir(extractedDir, { recursive: true });
   await mkdir(historyDir, { recursive: true });
+  if (!initialize) return;
   await ensureTerminalAgent();
   await ensureActivityFiles();
   await ensureWorkspaceInstructions();
@@ -171,7 +172,7 @@ export async function writeActiveResume(resume) {
 }
 
 export async function readContextState() {
-  await ensureWorkspace();
+  await ensureWorkspace({ initialize: false });
   try {
     const raw = await readFile(contextStatePath, "utf8");
     return normalizeContextState(raw.trim() ? JSON.parse(raw) : {});
@@ -194,7 +195,7 @@ export async function writeContextState(patch = {}) {
 }
 
 export async function readActiveResume() {
-  await ensureWorkspace();
+  await ensureWorkspace({ initialize: false });
   const raw = await readFile(activeResumePath, "utf8");
   return JSON.parse(raw);
 }
@@ -363,7 +364,7 @@ export async function saveResumeDocument(resume, suggestedName) {
 }
 
 export async function listResumeDocuments() {
-  await ensureWorkspace();
+  await ensureWorkspace({ initialize: false });
   const files = await readdir(workspaceDir);
   const targetFiles = files.filter((file) => file.endsWith(".rts.json")).sort().reverse();
   const items = [];
@@ -420,7 +421,7 @@ export async function createResumeArchive(reason = "manual") {
 }
 
 export async function listResumeArchives() {
-  await ensureWorkspace();
+  await ensureWorkspace({ initialize: false });
   const files = await readdir(historyDir);
   const archives = [];
 
