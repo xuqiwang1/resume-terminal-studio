@@ -2,6 +2,7 @@
 // name/role/date render in a three-column header instead of being buried in body text.
 const fs = require("node:fs");
 const path = require("node:path");
+const { rendersThroughRichText } = require("../richTextContract.cjs");
 
 const templatePath = path.join(__dirname, "index.jsx");
 const cssPath = path.join(__dirname, "../../index.css");
@@ -17,8 +18,10 @@ function check(name, cond) {
   }
 }
 
-function hasRichText(value, fid) {
-  return template.includes(`<RichText value={${value}} fieldId={${fid}}`);
+// A field is "wired" when it renders through <RichText> under its stable fieldId,
+// regardless of which value expression feeds it or how props are ordered.
+function wired(fid) {
+  return rendersThroughRichText(template, { fieldId: fid });
 }
 
 check("projects render a dedicated header row", template.includes("pro-project-head"));
@@ -28,12 +31,12 @@ check("project date is a first-class selectable field", template.includes('field
 check("project details stay in the structured body", template.includes("pro-project-body"));
 check("projects share the three-column alignment model", css.includes(".pro-project-head") && css.includes("grid-template-columns: max-content 1fr max-content"));
 check("professional header participates in active section state", template.includes('sectionClass(activeSectionId, workingSection, "header")'));
-check("professional structured details render through RichText", template.includes("<RichText value={labeled[2]}") && template.includes("<RichText value={trimmed}"));
-check("professional contact renders through RichText", hasRichText("resume.contact", 'fieldId("header", null, "contact")'));
-check("professional title renders through RichText", hasRichText("resume.title", 'fieldId("header", null, "title")'));
-check("professional project name renders through RichText", hasRichText("item.name", 'fieldId("projects", index, "name")'));
-check("professional project role renders through RichText", hasRichText("item.role", 'fieldId("projects", index, "role")'));
-check("professional skill category renders through RichText", hasRichText("item.category", 'fieldId("skills", index, "category")'));
+check("professional structured details render through RichText", rendersThroughRichText(template, { value: "labeled[2]" }) && rendersThroughRichText(template, { value: "trimmed" }));
+check("professional contact renders through RichText", wired('fieldId("header", null, "contact")'));
+check("professional title renders through RichText", wired('fieldId("header", null, "title")'));
+check("professional project name renders through RichText", wired('fieldId("projects", index, "name")'));
+check("professional project role renders through RichText", wired('fieldId("projects", index, "role")'));
+check("professional skill category renders through RichText", wired('fieldId("skills", index, "category")'));
 check("education school column defaults centered", template.includes('const schoolAlign = eduLayout.schoolAlign || "center"'));
 check("education rows center school in total row space", css.includes("grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);"));
 check("centered education school field stays on row center", css.includes(".edu-school-center .pro-edu-school { justify-self: center; }"));

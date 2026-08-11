@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { rendersThroughRichText } = require("../richTextContract.cjs");
 
 let failed = false;
 function check(name, condition) {
@@ -12,19 +13,31 @@ function check(name, condition) {
 const templatePath = path.join(__dirname, "index.jsx");
 const source = fs.readFileSync(templatePath, "utf8");
 
-function hasRichText(value, fid) {
-  return source.includes(`<RichText value={${value}} fieldId={${fid}}`);
+// A field is "wired" when it renders through <RichText> under its stable fieldId,
+// regardless of which value expression feeds it or how props are ordered.
+function wired(fieldId) {
+  return rendersThroughRichText(source, { fieldId });
 }
 
 check("editorial imports RichText", source.includes('import RichText from "../../components/RichText";'));
-check("editorial contact renders through RichText", hasRichText("resume.contact", 'fieldId("header", null, "contact")'));
-check("editorial title renders through RichText", hasRichText("resume.title", 'fieldId("header", null, "title")'));
-check("editorial project name renders through RichText", hasRichText("item.name", 'fieldId("projects", index, "name")'));
-check("editorial project role renders through RichText", hasRichText("item.role", 'fieldId("projects", index, "role")'));
-check("editorial skill category renders through RichText", hasRichText("item.category", 'fieldId("skills", index, "category")'));
-check("editorial skills render through RichText", hasRichText("item.content", 'fieldId("skills", index, "content")'));
-check("editorial structured text renders through RichText", source.includes("<RichText value={trimmed} fieldId={`editorial-structured.${index}`} />"));
-check("editorial labeled structured text renders through RichText", source.includes("<RichText value={labeled[2]} fieldId={`editorial-structured.${index}`} />"));
-check("editorial summary renders through RichText", hasRichText("summaryDraft ?? resume.summary", 'fieldId("summary", null, "text")'));
+check("editorial contact renders through RichText", wired('fieldId("header", null, "contact")'));
+check("editorial title renders through RichText", wired('fieldId("header", null, "title")'));
+check("editorial project name renders through RichText", wired('fieldId("projects", index, "name")'));
+check("editorial project role renders through RichText", wired('fieldId("projects", index, "role")'));
+check("editorial skill category renders through RichText", wired('fieldId("skills", index, "category")'));
+check("editorial skills render through RichText", wired('fieldId("skills", index, "content")'));
+check("editorial summary renders through RichText", wired('fieldId("summary", null, "text")'));
+
+// The two structured-line paths share one fieldId, so the value expression is what
+// distinguishes the labeled path from the unlabeled one — pin it for these two only.
+const structuredFieldId = "`editorial-structured.${index}`";
+check(
+  "editorial structured text renders through RichText",
+  rendersThroughRichText(source, { fieldId: structuredFieldId, value: "trimmed" })
+);
+check(
+  "editorial labeled structured text renders through RichText",
+  rendersThroughRichText(source, { fieldId: structuredFieldId, value: "labeled[2]" })
+);
 
 if (failed) process.exit(1);
