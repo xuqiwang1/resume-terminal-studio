@@ -956,6 +956,9 @@ button {
   color: rgba(29,29,31,0.48);
 }
 .resume-card p { margin: var(--r-header-gap, 8px) 0 0; font-size: var(--r-fs-body, 14px); line-height: var(--r-lh, 1.65); color: rgba(29,29,31,0.78); }
+/* Separator between the education tag and date, which are adjacent inline elements.
+   Padding rather than text whitespace: whitespace collapses at inline-block edges. */
+.resume-card .edu-sep { padding: 0 5px; }
 
 /* ─── Template Selector ─── */
 .template-select {
@@ -1462,6 +1465,47 @@ button {
 .pending-instruction {
   margin: 0 0 8px;
   font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Conflict notice: the patch's recorded original no longer matches the document.
+   Uses the same proof-mark colour as other destructive warnings. */
+.pending-conflict {
+  margin: -3px 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--mark);
+  border-radius: 4px;
+  background: rgba(196, 48, 43, 0.04);
+}
+
+.pending-conflict-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mark);
+}
+
+.pending-conflict-note {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.pending-conflict-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pending-conflict-item {
+  display: grid;
+  gap: 4px;
+}
+
+.pending-conflict-target {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--text-secondary);
 }
 

@@ -334,6 +334,58 @@ function normalizeBatchChange(resume, change) {
   throw new Error(`Unsupported batch operation "${operation}"`);
 }
 
+// A pending patch records the value it expects to replace. If that value no longer
+// matches the resume — the user restyled the field, an agent rewrote the file, a
+// history version was restored — then applying the patch would silently discard
+// whatever replaced it. We report the mismatch instead of overwriting.
+function currentValueForChange(resume, change) {
+  if (change.operation === "replace_item") {
+    return resume?.[change.sectionId]?.[change.index] ?? null;
+  }
+  return getFieldValue(resume, change.sectionId, change.index ?? 0, change.field);
+}
+
+function sameRecordedValue(expected, actual) {
+  if (typeof expected === "string" || typeof actual === "string") {
+    return (expected || "") === (actual || "");
+  }
+  return JSON.stringify(expected ?? null) === JSON.stringify(actual ?? null);
+}
+
+function conflictEntry(target, expected, actual) {
+  return {
+    sectionId: target.sectionId,
+    index: typeof target.index === "number" ? target.index : null,
+    field: target.field || null,
+    bulletIndex: typeof target.bulletIndex === "number" ? target.bulletIndex : null,
+    expected: expected ?? null,
+    actual: actual ?? null
+  };
+}
+
+function detectPendingConflicts(pendingPatch, resume) {
+  if (!pendingPatch) return [];
+
+  if (pendingPatch.kind === "batch") {
+    // append_item records `before: null` because it targets an item that does not
+    // exist yet — there is nothing it could conflict with.
+    return (pendingPatch.changes || [])
+      .filter((change) => change.operation !== "append_item")
+      .reduce((conflicts, change) => {
+        const actual = currentValueForChange(resume, change);
+        if (!sameRecordedValue(change.before, actual)) {
+          conflicts.push(conflictEntry(change, change.before, actual));
+        }
+        return conflicts;
+      }, []);
+  }
+
+  if (pendingPatch.append) return [];
+  const actual = getPatchBefore(resume, pendingPatch);
+  if (sameRecordedValue(pendingPatch.before, actual)) return [];
+  return [conflictEntry(pendingPatch, pendingPatch.before, actual)];
+}
+
 function createResumeCore({ bus, persistence }) {
   let resume = persistence.loadResume();
   let pendingPatch = persistence.loadPendingPatch();
@@ -459,7 +511,7 @@ function createResumeCore({ bus, persistence }) {
     return pendingPatch;
   }
 
-  function confirmPendingPatch({ sessionId, pendingId }) {
+  function confirmPendingPatch({ sessionId, pendingId, allowConflict = false }) {
     if (!pendingPatch || pendingPatch.id !== pendingId) {
       throw new Error("Invalid pending patch confirmation");
     }
@@ -468,6 +520,13 @@ function createResumeCore({ bus, persistence }) {
     }
     if (isPendingStaleForActiveDocument(pendingPatch, activeDocument)) {
       throw new Error("Stale pending patch: active document changed");
+    }
+    const conflicts = detectPendingConflicts(pendingPatch, resume);
+    if (conflicts.length && !allowConflict) {
+      const error = new Error("Conflicting pending patch: the target text changed after this patch was proposed");
+      error.name = "PendingPatchConflict";
+      error.conflicts = conflicts;
+      throw error;
     }
     let nextResume = resume;
     if (pendingPatch.kind === "batch") {
@@ -505,6 +564,7 @@ function createResumeCore({ bus, persistence }) {
     setResume,
     getResume,
     getPendingPatch,
+    getPendingConflicts: () => detectPendingConflicts(pendingPatch, resume),
     getActiveDocument,
     getSelection,
     setSelection,
@@ -515,4 +575,4 @@ function createResumeCore({ bus, persistence }) {
   };
 }
 
-module.exports = { createResumeCore };
+module.exports = { createResumeCore, detectPendingConflicts };

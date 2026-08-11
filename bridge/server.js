@@ -23,6 +23,7 @@ import {
   readSelectionState,
   createNewResumeFromTemplate,
   createResumeArchive,
+  AUTO_ARCHIVE_REASON,
   restoreResumeArchive,
   saveResumeDocument,
   terminalAgentPath,
@@ -312,11 +313,21 @@ const broadcastResume = async () => {
 
 // 推送当前 pending patch（待确认草稿）状态给前端。
 // pending 为 null 表示没有待确认项（已被 confirm / reject 清空）。
-const broadcastPending = () => {
+// Pending patches travel with the conflict list attached so the review UI can warn
+// before the user clicks accept. This is computed against the runtime resume, which
+// may lag the workbench's unsaved styling — /api/patch/confirm re-checks against the
+// client's own copy and is the authoritative gate.
+const pendingPayload = () => {
   const { core, persistence } = currentRuntime();
   const pending = persistence.loadPendingPatch();
   core.hydratePendingPatch(pending);
-  pendingStreams.forEach((res) => writeSse(res, "pending", { pending: pending || null }));
+  if (!pending) return { pending: null };
+  return { pending, conflicts: core.getPendingConflicts() };
+};
+
+const broadcastPending = () => {
+  const payload = pendingPayload();
+  pendingStreams.forEach((res) => writeSse(res, "pending", payload));
 };
 
 const hydrateRuntimeDocumentFromContext = async () => {
@@ -651,10 +662,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && requestPath === "/api/patch/pending") {
-    const { core, persistence } = currentRuntime();
-    const pending = persistence.loadPendingPatch();
-    core.hydratePendingPatch(pending);
-    return sendJson(res, 200, { pending: pending || null });
+    return sendJson(res, 200, pendingPayload());
   }
 
   if (req.method === "GET" && requestPath === "/api/patch/stream") {
@@ -664,10 +672,7 @@ const server = createServer(async (req, res) => {
       Connection: "keep-alive"
     });
     pendingStreams.add(res);
-    const { core, persistence } = currentRuntime();
-    const pending = persistence.loadPendingPatch();
-    core.hydratePendingPatch(pending);
-    writeSse(res, "pending", { pending: pending || null });
+    writeSse(res, "pending", pendingPayload());
     req.on("close", () => {
       pendingStreams.delete(res);
     });
@@ -688,18 +693,36 @@ const server = createServer(async (req, res) => {
           core.hydrateResume(body.resume);
         }
         core.hydratePendingPatch(persistence.loadPendingPatch());
+        // Checkpoint the pre-patch state before anything is applied, so accepting an
+        // AI change is always recoverable from the history panel. Archive the runtime
+        // resume rather than the file: the client's copy (with unsaved styling) is
+        // what the user is actually looking at, and it is not on disk yet.
+        const checkpoint = await createResumeArchive(AUTO_ARCHIVE_REASON, {
+          resume: core.getResume(),
+          prune: true
+        });
         core.confirmPendingPatch({
-          pendingId: body.pendingId
+          pendingId: body.pendingId,
+          allowConflict: body.allowConflict === true
         });
         return {
           patch: null,
-          resume: core.getResume()
+          resume: core.getResume(),
+          checkpoint: { fileName: checkpoint.fileName, archivedAt: checkpoint.archivedAt }
         };
       });
       await broadcastResume();
       broadcastPending();
-      return sendJson(res, 200, { ok: true, patch: result.patch, resume: result.resume });
+      return sendJson(res, 200, {
+        ok: true,
+        patch: result.patch,
+        resume: result.resume,
+        checkpoint: result.checkpoint
+      });
     } catch (error) {
+      if (error.name === "PendingPatchConflict") {
+        return sendJson(res, 409, { error: error.message, conflicts: error.conflicts || [] });
+      }
       const status = /stale pending patch/i.test(error.message) ? 409 : 400;
       return sendJson(res, status, { error: error.message });
     }

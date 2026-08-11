@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { computeTextDiff } from "../lib/textDiff";
 import {
+  formatFieldLabel,
   formatPendingChangeFields,
   formatPendingChangeLabel,
   formatPendingValue,
@@ -139,6 +140,34 @@ function PendingEvidence({ evidence = [] }) {
   );
 }
 
+// Shows exactly what the patch expected to find versus what is there now, so the user
+// can tell whether their own edit is about to be discarded.
+function PendingConflictNotice({ conflicts = [] }) {
+  if (conflicts.length === 0) return null;
+
+  return (
+    <div className="pending-conflict">
+      <p className="pending-conflict-title">原文已被修改（{conflicts.length} 处）</p>
+      <p className="pending-conflict-note">
+        以下内容在 AI 提出改动之后又变过。接受会用 AI 版本覆盖当前内容。
+      </p>
+      <div className="pending-conflict-list">
+        {conflicts.map((conflict, index) => (
+          <div key={`${conflict.sectionId}-${conflict.index}-${conflict.field}-${index}`} className="pending-conflict-item">
+            <span className="pending-conflict-target">
+              {formatSectionLabel(conflict.sectionId)}
+              {typeof conflict.index === "number" ? ` · 第 ${conflict.index + 1} 条` : ""}
+              {conflict.field ? ` · ${formatFieldLabel(conflict.field)}` : ""}
+            </span>
+            <PendingValueBlock label="AI 提出时的原文" value={conflict.expected} />
+            <PendingValueBlock label="当前内容" value={conflict.actual} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function formatRiskLevel(riskLevel) {
   if (riskLevel === "high") return "高风险";
   if (riskLevel === "medium") return "中风险";
@@ -151,18 +180,23 @@ function getCheckpointSummary(pending) {
   return { changeCount, evidenceCount };
 }
 
-export default function PendingPatchBanner({ pending, onConfirm, onReject }) {
+export default function PendingPatchBanner({ pending, conflicts = [], onConfirm, onReject }) {
   const [highRiskAcknowledged, setHighRiskAcknowledged] = useState(false);
+  const [conflictAcknowledged, setConflictAcknowledged] = useState(false);
 
   useEffect(() => {
     setHighRiskAcknowledged(false);
+    setConflictAcknowledged(false);
   }, [pending?.id]);
 
   if (!pending) return null;
 
   const riskLevel = pending.riskLevel || "low";
   const isHighRisk = riskLevel === "high";
-  const acceptDisabled = isHighRisk && !highRiskAcknowledged;
+  // A conflict means the text this patch was written against is no longer there.
+  // Accepting anyway is allowed, but it must be a deliberate second action.
+  const hasConflict = conflicts.length > 0;
+  const acceptDisabled = (isHighRisk && !highRiskAcknowledged) || (hasConflict && !conflictAcknowledged);
   const checkpoint = getCheckpointSummary(pending);
   const label =
     pending.kind === "batch"
@@ -193,6 +227,7 @@ export default function PendingPatchBanner({ pending, onConfirm, onReject }) {
       {riskLevel === "high" ? (
         <p className="pending-risk-note">本次会替换或新增整条结构化内容，请重点核对范围。</p>
       ) : null}
+      {hasConflict ? <PendingConflictNotice conflicts={conflicts} /> : null}
       {pending.instruction ? (
         <p className="pending-instruction">指令：{pending.instruction}</p>
       ) : null}
@@ -226,13 +261,27 @@ export default function PendingPatchBanner({ pending, onConfirm, onReject }) {
             <span>已核对整条替换/新增范围</span>
           </label>
         ) : null}
+        {hasConflict ? (
+          <label className="pending-risk-confirm">
+            <input
+              type="checkbox"
+              checked={conflictAcknowledged}
+              onChange={(event) => setConflictAcknowledged(event.target.checked)}
+            />
+            <span>已知原文被改过，仍要用 AI 版本覆盖</span>
+          </label>
+        ) : null}
       </div>
       <div className="pending-actions">
         <button className="pending-btn pending-reject" onClick={onReject}>
           拒绝
         </button>
-        <button className="pending-btn pending-accept" onClick={onConfirm} disabled={acceptDisabled}>
-          接受改动
+        <button
+          className="pending-btn pending-accept"
+          onClick={() => onConfirm?.({ force: hasConflict })}
+          disabled={acceptDisabled}
+        >
+          {hasConflict ? "覆盖并接受" : "接受改动"}
         </button>
       </div>
     </div>

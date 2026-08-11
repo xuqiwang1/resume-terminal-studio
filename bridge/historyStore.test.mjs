@@ -57,4 +57,41 @@ assert.equal(restored.resume.experience[0].details, "原始经历");
 const currentAfterRestore = await store.readActiveResume();
 assert.equal(currentAfterRestore.name, "测试用户");
 
+// The confirm route archives the resume it holds in memory, which may differ from the
+// file on disk (unsaved styling). An explicit resume must win over readActiveResume().
+const inMemory = { ...originalResume, summary: "仅存在于内存中的总结" };
+const fromMemory = await store.createResumeArchive("before-ai-patch", { resume: inMemory });
+assert.equal(fromMemory.resume.summary, "仅存在于内存中的总结");
+const reread = await store.listResumeArchives();
+assert.equal(
+  reread.find((a) => a.fileName === fromMemory.fileName).resume.summary,
+  "仅存在于内存中的总结"
+);
+assert.equal((await store.readActiveResume()).summary, "原始总结", "archiving must not write the active resume");
+
+// Two archives in the same millisecond used to collide on one filename, so the second
+// silently replaced the first. Accepting several patches quickly makes that reachable.
+const burst = await Promise.all([
+  store.createResumeArchive("before-ai-patch", { resume: originalResume }),
+  store.createResumeArchive("before-ai-patch", { resume: originalResume }),
+  store.createResumeArchive("before-ai-patch", { resume: originalResume })
+]);
+assert.equal(new Set(burst.map((a) => a.fileName)).size, 3, "burst archives must not overwrite each other");
+
+// Auto checkpoints are capped; manual snapshots are never pruned.
+const beforePrune = await store.listResumeArchives();
+const manualCount = beforePrune.filter((a) => a.reason !== store.AUTO_ARCHIVE_REASON).length;
+for (let i = 0; i < 45; i += 1) {
+  await store.createResumeArchive(store.AUTO_ARCHIVE_REASON, { resume: originalResume, prune: true });
+}
+const afterPrune = await store.listResumeArchives();
+const autoAfter = afterPrune.filter((a) => a.reason === store.AUTO_ARCHIVE_REASON);
+assert.ok(autoAfter.length <= 40, `auto checkpoints must stay capped, got ${autoAfter.length}`);
+assert.equal(
+  afterPrune.filter((a) => a.reason !== store.AUTO_ARCHIVE_REASON).length,
+  manualCount,
+  "pruning must not touch manual snapshots"
+);
+
 fs.rmSync(tmp, { recursive: true, force: true });
+console.log("All history store checks passed.");

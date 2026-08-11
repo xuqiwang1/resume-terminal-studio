@@ -41,6 +41,13 @@ check("css defines pending evidence block", css.includes(".pending-evidence"));
 check("css defines pending risk badges", css.includes(".pending-risk-high"));
 check("css defines pending checkpoints", css.includes(".pending-checkpoints"));
 check("css defines disabled accept state", css.includes(".pending-accept:disabled"));
+check("banner accepts a conflict list", source.includes("conflicts = []"));
+check("banner renders the conflict notice", source.includes("<PendingConflictNotice conflicts={conflicts} />"));
+check("conflict notice shows both the recorded and the current text", source.includes('label="AI 提出时的原文"') && source.includes('label="当前内容"'));
+check("conflict blocks accept until acknowledged", source.includes("hasConflict && !conflictAcknowledged"));
+check("conflict acknowledgement resets per patch", source.includes("setConflictAcknowledged(false)"));
+check("accepting a conflicting patch is an explicit overwrite", source.includes("onConfirm?.({ force: hasConflict })"));
+check("css defines the conflict notice", css.includes(".pending-conflict {") && css.includes(".pending-conflict-target"));
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);

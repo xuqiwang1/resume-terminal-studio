@@ -1,4 +1,4 @@
-import { chmod, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import defaultResumeModule from "./defaultResume.cjs";
@@ -69,6 +69,28 @@ function safeArchiveFileName(text) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const slug = safeSlug(text || "snapshot");
   return `${stamp}-${slug}.json`;
+}
+
+// Two archives created inside the same millisecond used to resolve to the same name,
+// so the second silently overwrote the first. Probing with stat() first is racy —
+// concurrent callers all see the name as free — so claim it with an exclusive create
+// and let EEXIST drive the retry.
+async function writeArchiveExclusive(reason, archive) {
+  const base = safeArchiveFileName(reason);
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const fileName = attempt === 0 ? base : base.replace(/\.json$/, `-${attempt}.json`);
+    const fullPath = path.join(historyDir, fileName);
+    try {
+      await writeFile(fullPath, JSON.stringify(archive, null, 2), { encoding: "utf8", flag: "wx" });
+      return { fileName, fullPath };
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+    }
+  }
+  const fileName = base.replace(/\.json$/, `-${process.pid}-${Date.now()}.json`);
+  const fullPath = path.join(historyDir, fileName);
+  await writeFile(fullPath, JSON.stringify(archive, null, 2), "utf8");
+  return { fileName, fullPath };
 }
 
 function assertSafeArchiveName(fileName) {
@@ -398,19 +420,40 @@ export async function openResumeDocument(fileName) {
   };
 }
 
-export async function createResumeArchive(reason = "manual") {
+// Auto checkpoints (one per accepted AI patch) would otherwise grow without bound.
+// Manual snapshots are never pruned — the user asked for those on purpose.
+export const AUTO_ARCHIVE_REASON = "before-ai-patch";
+const AUTO_ARCHIVE_KEEP = 40;
+
+async function pruneAutoArchives() {
+  const archives = await listResumeArchives();
+  const auto = archives.filter((archive) => archive.reason === AUTO_ARCHIVE_REASON);
+  const stale = auto.slice(AUTO_ARCHIVE_KEEP);
+  for (const archive of stale) {
+    try {
+      await rm(archive.fullPath, { force: true });
+    } catch {
+      // A checkpoint we cannot delete is not worth failing an accept over.
+    }
+  }
+  return stale.length;
+}
+
+// `resume` lets a caller archive state it holds in memory. The confirm route needs
+// this: the workbench's copy (with unsaved styling) is what the user is looking at,
+// and it is not on disk yet.
+export async function createResumeArchive(reason = "manual", { resume: providedResume, prune = false } = {}) {
   await ensureWorkspace();
-  const resume = await readActiveResume();
+  const resume = providedResume || (await readActiveResume());
   const archivedAt = new Date().toISOString();
-  const fileName = safeArchiveFileName(reason);
-  const fullPath = path.join(historyDir, fileName);
   const archive = {
     version: 1,
     reason,
     archivedAt,
     resume
   };
-  await writeFile(fullPath, JSON.stringify(archive, null, 2), "utf8");
+  const { fileName, fullPath } = await writeArchiveExclusive(reason, archive);
+  if (prune) await pruneAutoArchives();
   return {
     fileName,
     fullPath,

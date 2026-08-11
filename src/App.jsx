@@ -25,7 +25,7 @@ export default function App() {
     archiveCurrent, startNewResume, openArchive,
     selectedField, onSelectField, workingSection,
     syncView,
-    pendingPatch, confirmPending, rejectPending,
+    pendingPatch, pendingConflicts, confirmPending, rejectPending,
     patchAnimation, onPatchAnimationComplete,
     templateId, setTemplateId,
     fontId, setFontId,
@@ -156,6 +156,7 @@ export default function App() {
 
       <PendingPatchBanner
         pending={pendingPatch}
+        conflicts={pendingConflicts}
         onConfirm={confirmPending}
         onReject={rejectPending}
       />
