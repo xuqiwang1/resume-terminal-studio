@@ -23,5 +23,11 @@ export function mergeResumeSnapshot(currentResume, incomingResume) {
     next.layoutConfig = currentResume.layoutConfig;
   }
 
+  // Agents write content, not presentation. A snapshot that omits styleSettings must
+  // not be read as "the user cleared their style" — keep what the workbench holds.
+  if (!hasOwn(incomingResume, "styleSettings") && currentResume.styleSettings) {
+    next.styleSettings = currentResume.styleSettings;
+  }
+
   return next;
 }

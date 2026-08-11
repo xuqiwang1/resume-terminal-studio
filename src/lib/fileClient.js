@@ -127,6 +127,16 @@ export async function saveResumeToFile({ resume, fileName }) {
   return response.json();
 }
 
+export async function saveStyleSettings(styleSettings) {
+  const response = await fetch(apiUrl("/api/resume/style"), {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({ styleSettings })
+  });
+  if (!response.ok) throw new Error("Failed to save style settings");
+  return response.json();
+}
+
 export async function listResumeFiles() {
   const response = await fetch(apiUrl("/api/files"), { headers: authHeaders() });
   if (!response.ok) throw new Error("Failed to list files");
@@ -202,20 +212,25 @@ export function subscribePendingUpdates(onPending) {
   const source = new EventSource(eventSourceUrl("/api/patch/stream"));
   source.addEventListener("pending", (event) => {
     const payload = JSON.parse(event.data);
-    onPending?.(payload.pending || null);
+    onPending?.(payload.pending || null, payload.conflicts || []);
   });
   return () => source.close();
 }
 
-export async function confirmPendingPatch(pendingId, resume) {
+export async function confirmPendingPatch(pendingId, resume, { allowConflict = false } = {}) {
   const response = await fetch(apiUrl("/api/patch/confirm"), {
     method: "POST",
     headers: jsonHeaders(),
-    body: JSON.stringify({ pendingId, resume })
+    body: JSON.stringify({ pendingId, resume, allowConflict })
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "Failed to confirm patch");
+    const error = new Error(payload.error || "Failed to confirm patch");
+    if (response.status === 409 && Array.isArray(payload.conflicts) && payload.conflicts.length) {
+      error.name = "PendingPatchConflict";
+      error.conflicts = payload.conflicts;
+    }
+    throw error;
   }
   return response.json();
 }

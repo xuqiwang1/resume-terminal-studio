@@ -497,6 +497,27 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  // Presentation-only autosave. The workbench debounces style edits here instead of
+  // sending the whole resume, so a background autosave can never overwrite content —
+  // it merges one key onto whatever the runtime currently holds.
+  if (req.method === "POST" && requestPath === "/api/resume/style") {
+    try {
+      const resume = await runSerialized(async () => {
+        const body = await readJson(req);
+        if (!body.styleSettings || typeof body.styleSettings !== "object") {
+          throw new Error("styleSettings must be an object");
+        }
+        const core = currentRuntime().core;
+        core.setResume({ ...core.getResume(), styleSettings: body.styleSettings });
+        return core.getResume();
+      });
+      await broadcastResume();
+      return sendJson(res, 200, { ok: true, styleSettings: resume.styleSettings });
+    } catch (error) {
+      return sendJson(res, 400, { error: error.message });
+    }
+  }
+
   if (req.method === "POST" && requestPath === "/api/resume/new") {
     try {
       const { result, synced } = await runSerialized(async () => {

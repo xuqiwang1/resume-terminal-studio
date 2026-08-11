@@ -25,6 +25,7 @@ import {
   openResumeFile,
   openResumeArchive,
   saveResumeToFile,
+  saveStyleSettings,
   subscribeActivityUpdates,
   subscribeResumeUpdates,
   subscribePendingUpdates,
@@ -36,16 +37,20 @@ import {
 } from "../lib/fileClient";
 import { initialActivity, initialResume } from "../data/mockResume";
 import { mergeResumeSnapshot } from "./resumeSnapshotMerge";
-import { getTemplate, getTemplatePreset } from "../templates/registry";
+import { getTemplate } from "../templates/registry";
+import {
+  applyTemplatePreset,
+  normalizeStyleSettings,
+  styleSettingsEqual
+} from "../lib/styleSettings";
+
+const STYLE_AUTOSAVE_DELAY_MS = 400;
 
 const DEFAULT_LAYOUT_CONFIG = {
   education: { schoolAlign: "center", majorAlign: "right" },
   skills: { layout: "block" },
   linkStyle: { mode: "default", color: "#0645ad", underline: true }
 };
-
-const DEFAULT_TEMPLATE_ID = "professional";
-const DEFAULT_STYLE_PRESET = getTemplatePreset(DEFAULT_TEMPLATE_ID);
 
 function buildDocumentState({
   mode,
@@ -91,15 +96,13 @@ export function useResumeStudio() {
   const [selectedField, setSelectedField] = useState(null);
   const [workingSection, setWorkingSection] = useState(null);
   const [pendingPatch, setPendingPatch] = useState(null);
+  const [pendingConflicts, setPendingConflicts] = useState([]);
   const [patchAnimation, setPatchAnimation] = useState(null);
-  const [templateId, setTemplateIdState] = useState(DEFAULT_TEMPLATE_ID);
-  const [fontId, setFontId] = useState("serif");
-  const [colorId, setColorId] = useState("black");
-  const [lineHeight, setLineHeight] = useState(DEFAULT_STYLE_PRESET.lineHeight);
-  const [sectionGap, setSectionGap] = useState(DEFAULT_STYLE_PRESET.sectionGap);
-  const [pagePadding, setPagePadding] = useState(DEFAULT_STYLE_PRESET.pagePadding);
-  const [fontSize, setFontSize] = useState(() => ({ ...DEFAULT_STYLE_PRESET.fontSize }));
-  const [ruleStyle, setRuleStyle] = useState(DEFAULT_STYLE_PRESET.ruleStyle);
+  // One object instead of eight independent states: presentation now lives inside the
+  // resume document, so it is saved, restored, and archived along with the content.
+  const [styleSettings, setStyleSettingsState] = useState(() =>
+    normalizeStyleSettings(initialResume.styleSettings)
+  );
   const [avatar, setAvatarState] = useState(initialResume.avatar ?? null);
   const [avatarPos, setAvatarPosState] = useState(initialResume.avatarPos || { x: 0, y: 0 });
   const [fieldStyles, setFieldStyles] = useState(initialResume.fieldStyles || {});
@@ -126,18 +129,40 @@ export function useResumeStudio() {
     setResume((prev) => ({ ...prev, layoutConfig: next }));
   }, []);
 
+  // Mirror style settings into the resume object. /api/patch/confirm hydrates the
+  // server from the client's resume, so anything living outside it would be wiped
+  // to undefined the moment an AI patch is accepted.
+  const setStyleSettings = useCallback((updater) => {
+    setStyleSettingsState((current) => {
+      const raw = typeof updater === "function" ? updater(current) : updater;
+      const next = normalizeStyleSettings(raw);
+      if (styleSettingsEqual(current, next)) return current;
+      setResume((prev) => ({ ...prev, styleSettings: next }));
+      return next;
+    });
+  }, []);
+
+  const patchStyle = useCallback(
+    (partial) => setStyleSettings((current) => ({ ...current, ...partial })),
+    [setStyleSettings]
+  );
+
   const setTemplateId = useCallback((nextId) => {
     const nextTemplate = getTemplate(nextId);
-    if (nextTemplate.id === templateId) return;
-    const preset = getTemplatePreset(nextTemplate.id);
-    setTemplateIdState(nextTemplate.id);
-    if (!preset) return;
-    setLineHeight(preset.lineHeight);
-    setSectionGap(preset.sectionGap);
-    setPagePadding(preset.pagePadding);
-    setFontSize({ ...preset.fontSize });
-    setRuleStyle(preset.ruleStyle);
-  }, [templateId]);
+    setStyleSettings((current) =>
+      nextTemplate.id === current.templateId ? current : applyTemplatePreset(current, nextTemplate.id)
+    );
+  }, [setStyleSettings]);
+
+  // Same public setter names the panel already binds to, so LeftStylePanel and App
+  // do not need to know that these values became one object.
+  const setFontId = useCallback((value) => patchStyle({ fontId: value }), [patchStyle]);
+  const setColorId = useCallback((value) => patchStyle({ colorId: value }), [patchStyle]);
+  const setLineHeight = useCallback((value) => patchStyle({ lineHeight: value }), [patchStyle]);
+  const setSectionGap = useCallback((value) => patchStyle({ sectionGap: value }), [patchStyle]);
+  const setPagePadding = useCallback((value) => patchStyle({ pagePadding: value }), [patchStyle]);
+  const setFontSize = useCallback((value) => patchStyle({ fontSize: value }), [patchStyle]);
+  const setRuleStyle = useCallback((value) => patchStyle({ ruleStyle: value }), [patchStyle]);
 
   const prevResumeRef = useRef(null);
   const resumeRef = useRef(initialResume);
@@ -160,6 +185,7 @@ export function useResumeStudio() {
     setResume(mergedResume);
     setFieldStyles(mergedResume?.fieldStyles || {});
     setLayoutConfigState(mergedResume?.layoutConfig || DEFAULT_LAYOUT_CONFIG);
+    setStyleSettingsState(normalizeStyleSettings(mergedResume?.styleSettings));
     setAvatarPosState(mergedResume?.avatarPos || { x: 0, y: 0 });
     if (mergedResume && mergedResume.avatar !== undefined) {
       setAvatarState(mergedResume.avatar ?? null);
@@ -323,7 +349,10 @@ export function useResumeStudio() {
       .catch(() => {});
 
     fetchPendingPatch()
-      .then((data) => setPendingPatch(data.pending || null))
+      .then((data) => {
+        setPendingPatch(data.pending || null);
+        setPendingConflicts(data.conflicts || []);
+      })
       .catch((e) => {
         pushActivityItem({
           label: "Pending",
@@ -404,8 +433,9 @@ export function useResumeStudio() {
     refreshFiles().catch(() => {});
     refreshHistory().catch(() => {});
 
-    stopPendingStream = subscribePendingUpdates((pending) => {
+    stopPendingStream = subscribePendingUpdates((pending, conflicts) => {
       setPendingPatch(pending);
+      setPendingConflicts(conflicts || []);
       if (pending) {
         const resolvedSection = getPendingPatchPrimarySection(pending);
         setActiveSectionId(resolvedSection);
@@ -422,11 +452,34 @@ export function useResumeStudio() {
     };
   }, [applyResumeSnapshot, pushActivityItem, syncDocumentState]);
 
-  const confirmPending = useCallback(async () => {
+  // Debounced style autosave. Sliders fire on every pointer move, so writing on each
+  // change would thrash the disk; 400ms after the user stops, the settings are
+  // persisted on their own endpoint. lastSavedStyleRef is what stops the
+  // save -> broadcast -> snapshot -> save feedback loop.
+  const lastSavedStyleRef = useRef(null);
+  useEffect(() => {
+    if (!initialLoadDone.current) return undefined;
+    if (lastSavedStyleRef.current && styleSettingsEqual(lastSavedStyleRef.current, styleSettings)) {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      lastSavedStyleRef.current = styleSettings;
+      saveStyleSettings(styleSettings).catch((e) => {
+        lastSavedStyleRef.current = null;
+        pushActivityItem({ label: "Style", state: "Error", text: `样式自动保存失败：${e.message}` });
+      });
+    }, STYLE_AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [pushActivityItem, styleSettings]);
+
+  // `force` is the user answering the conflict warning: they saw that the target text
+  // changed after the patch was proposed and chose to overwrite it anyway.
+  const confirmPending = useCallback(async ({ force = false } = {}) => {
     if (!pendingPatch) return;
     setWorkingSection(null);
     try {
-      const result = await confirmPendingPatch(pendingPatch.id, resume);
+      const result = await confirmPendingPatch(pendingPatch.id, resume, { allowConflict: force });
+      setPendingConflicts([]);
       if (result?.resume) applyResumeSnapshot(result.resume, { updatePrevious: true });
       if (pendingPatch.kind !== "batch") {
         const fid = patchFieldId(pendingPatch.sectionId, pendingPatch.index);
@@ -444,9 +497,20 @@ export function useResumeStudio() {
       pushActivityItem({
         label: "Patch",
         state: "Confirmed",
-        text: `已接受 AI 改动并写入${describePendingPatch(pendingPatch)}。`
+        text: `已接受 AI 改动并写入${describePendingPatch(pendingPatch)}。已自动保存改动前的历史版本${
+          result?.checkpoint?.fileName ? `：${result.checkpoint.fileName}` : ""
+        }。`
       });
     } catch (e) {
+      if (e.name === "PendingPatchConflict") {
+        setPendingConflicts(e.conflicts);
+        pushActivityItem({
+          label: "Patch",
+          state: "Conflict",
+          text: `该改动的原文已被修改过（${e.conflicts.length} 处），未写入。请在审阅区确认后再接受。`
+        });
+        return;
+      }
       pushActivityItem({ label: "Patch", state: "Error", text: `确认失败：${e.message}` });
     }
   }, [applyResumeSnapshot, pendingPatch, pushActivityItem, resume]);
@@ -456,6 +520,7 @@ export function useResumeStudio() {
     setWorkingSection(null);
     try {
       await rejectPendingPatch(pendingPatch.id);
+      setPendingConflicts([]);
       pushActivityItem({ label: "Patch", state: "Rejected", text: "已拒绝本次 AI 改动，简历未改变。" });
     } catch (e) {
       pushActivityItem({ label: "Patch", state: "Error", text: `拒绝失败：${e.message}` });
@@ -564,18 +629,20 @@ export function useResumeStudio() {
     syncView,
     workingSection,
     pendingPatch,
+    pendingConflicts,
     confirmPending,
     rejectPending,
     patchAnimation,
     onPatchAnimationComplete,
-    templateId, setTemplateId,
-    fontId, setFontId,
-    colorId, setColorId,
-    lineHeight, setLineHeight,
-    sectionGap, setSectionGap,
-    pagePadding, setPagePadding,
-    fontSize, setFontSize,
-    ruleStyle, setRuleStyle,
+    templateId: styleSettings.templateId, setTemplateId,
+    fontId: styleSettings.fontId, setFontId,
+    colorId: styleSettings.colorId, setColorId,
+    lineHeight: styleSettings.lineHeight, setLineHeight,
+    sectionGap: styleSettings.sectionGap, setSectionGap,
+    pagePadding: styleSettings.pagePadding, setPagePadding,
+    fontSize: styleSettings.fontSize, setFontSize,
+    ruleStyle: styleSettings.ruleStyle, setRuleStyle,
+    styleSettings,
     avatar, setAvatar,
     avatarPos, setAvatarPos,
     layoutConfig, setLayoutConfig,

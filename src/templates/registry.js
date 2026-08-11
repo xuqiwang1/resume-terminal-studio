@@ -1,30 +1,7 @@
 import ProfessionalTemplate from "./professional";
 import EditorialTemplate from "./editorial";
 import ClassicTemplate from "./classic";
-
-const A4_COMPACT_PRESETS = {
-  professional: {
-    lineHeight: 1.32,
-    sectionGap: 6,
-    pagePadding: 24,
-    fontSize: { heading: 19, body: 10, muted: 9 },
-    ruleStyle: "thin"
-  },
-  editorial: {
-    lineHeight: 1.35,
-    sectionGap: 8,
-    pagePadding: 24,
-    fontSize: { heading: 22, body: 10, muted: 9 },
-    ruleStyle: "thin"
-  },
-  classic: {
-    lineHeight: 1.3,
-    sectionGap: 6,
-    pagePadding: 24,
-    fontSize: { heading: 19, body: 10, muted: 9 },
-    ruleStyle: "thin"
-  }
-};
+import { A4_COMPACT_PRESETS } from "./stylePresets";
 
 export const TEMPLATE_REGISTRY = [
   {

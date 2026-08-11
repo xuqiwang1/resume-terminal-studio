@@ -32,8 +32,12 @@ check("hook restores avatar position from merged resume snapshots", source.inclu
 check("default layout config includes link style", source.includes('linkStyle: { mode: "default", color: "#0645ad", underline: true }'));
 check("hook persists layout config in resume state", source.includes("layoutConfig: next"));
 check("hook restores layout config from merged resume snapshots", source.includes("mergedResume?.layoutConfig"));
-check("template defaults use A4 style presets", source.includes("getTemplatePreset") && source.includes("DEFAULT_STYLE_PRESET"));
-check("template switching applies its A4 style preset", source.includes("setTemplateIdState(nextTemplate.id)") && source.includes("setPagePadding(preset.pagePadding)"));
+check("hook normalizes persisted style settings", source.includes("normalizeStyleSettings"));
+check("hook persists style settings in resume state", source.includes("styleSettings: next"));
+check("hook restores style settings from merged resume snapshots", source.includes("mergedResume?.styleSettings"));
+check("template switching goes through the preset carry-over helper", source.includes("applyTemplatePreset(current, nextTemplate.id)"));
+check("style autosave is debounced", source.includes("STYLE_AUTOSAVE_DELAY_MS") && source.includes("setTimeout"));
+check("style autosave uses the presentation-only endpoint", source.includes("saveStyleSettings(styleSettings)"));
 check("hook imports guarded snapshot merge helper", source.includes('import { mergeResumeSnapshot } from "./resumeSnapshotMerge";'));
 check("applyResumeSnapshot tracks the current in-memory resume", source.includes("const resumeRef = useRef(initialResume);"));
 check("applyResumeSnapshot merges incoming snapshots instead of replacing resume directly", source.includes("const mergedResume = mergeResumeSnapshot(resumeRef.current, nextResume);"));
