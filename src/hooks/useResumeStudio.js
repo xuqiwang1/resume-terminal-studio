@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { runBridgeAction } from "../lib/bridgeClient";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { desktopSessionInfo } from "../lib/appClient";
-import { toSegments, applyStyleToRange, toPlainText } from "../lib/richText";
+import { toSegments, applyStyleToRange } from "../lib/richText";
 import {
   describePendingPatch,
   FIELD_LABELS,
@@ -35,14 +34,18 @@ import {
   syncContextSelection,
   syncContextView,
 } from "../lib/fileClient";
-import { actionDefinitions, initialActivity, initialResume } from "../data/mockResume";
+import { initialActivity, initialResume } from "../data/mockResume";
 import { mergeResumeSnapshot } from "./resumeSnapshotMerge";
+import { getTemplate, getTemplatePreset } from "../templates/registry";
 
 const DEFAULT_LAYOUT_CONFIG = {
   education: { schoolAlign: "center", majorAlign: "right" },
   skills: { layout: "block" },
   linkStyle: { mode: "default", color: "#0645ad", underline: true }
 };
+
+const DEFAULT_TEMPLATE_ID = "professional";
+const DEFAULT_STYLE_PRESET = getTemplatePreset(DEFAULT_TEMPLATE_ID);
 
 function buildDocumentState({
   mode,
@@ -64,9 +67,7 @@ export function useResumeStudio() {
   const [resume, setResume] = useState(initialResume);
   const [activeSectionId, setActiveSectionId] = useState("summary");
   const [activityItems, setActivityItems] = useState(initialActivity);
-  const [diff, setDiff] = useState({ before: "", after: "" });
   const [flashToken, setFlashToken] = useState(null);
-  const [draftState, setDraftState] = useState(null);
   const [bridgeStatus, setBridgeStatus] = useState({
     ok: false,
     workspaceDir: "",
@@ -91,15 +92,14 @@ export function useResumeStudio() {
   const [workingSection, setWorkingSection] = useState(null);
   const [pendingPatch, setPendingPatch] = useState(null);
   const [patchAnimation, setPatchAnimation] = useState(null);
-  const [actionInProgress, setActionInProgress] = useState(false);
-  const [templateId, setTemplateId] = useState("professional");
+  const [templateId, setTemplateIdState] = useState(DEFAULT_TEMPLATE_ID);
   const [fontId, setFontId] = useState("serif");
   const [colorId, setColorId] = useState("black");
-  const [lineHeight, setLineHeight] = useState(1.65);
-  const [sectionGap, setSectionGap] = useState(14);
-  const [pagePadding, setPagePadding] = useState(36);
-  const [fontSize, setFontSize] = useState({ heading: 22, body: 12, muted: 11 });
-  const [ruleStyle, setRuleStyle] = useState("thick");
+  const [lineHeight, setLineHeight] = useState(DEFAULT_STYLE_PRESET.lineHeight);
+  const [sectionGap, setSectionGap] = useState(DEFAULT_STYLE_PRESET.sectionGap);
+  const [pagePadding, setPagePadding] = useState(DEFAULT_STYLE_PRESET.pagePadding);
+  const [fontSize, setFontSize] = useState(() => ({ ...DEFAULT_STYLE_PRESET.fontSize }));
+  const [ruleStyle, setRuleStyle] = useState(DEFAULT_STYLE_PRESET.ruleStyle);
   const [avatar, setAvatarState] = useState(initialResume.avatar ?? null);
   const [avatarPos, setAvatarPosState] = useState(initialResume.avatarPos || { x: 0, y: 0 });
   const [fieldStyles, setFieldStyles] = useState(initialResume.fieldStyles || {});
@@ -125,6 +125,19 @@ export function useResumeStudio() {
     setLayoutConfigState(next);
     setResume((prev) => ({ ...prev, layoutConfig: next }));
   }, []);
+
+  const setTemplateId = useCallback((nextId) => {
+    const nextTemplate = getTemplate(nextId);
+    if (nextTemplate.id === templateId) return;
+    const preset = getTemplatePreset(nextTemplate.id);
+    setTemplateIdState(nextTemplate.id);
+    if (!preset) return;
+    setLineHeight(preset.lineHeight);
+    setSectionGap(preset.sectionGap);
+    setPagePadding(preset.pagePadding);
+    setFontSize({ ...preset.fontSize });
+    setRuleStyle(preset.ruleStyle);
+  }, [templateId]);
 
   const prevResumeRef = useRef(null);
   const resumeRef = useRef(initialResume);
@@ -363,8 +376,6 @@ export function useResumeStudio() {
           });
         }
         if (event.type === "patch") {
-          setDraftState(null);
-          setDiff({ before: event.before || "", after: event.after || "" });
           const resolvedSection = normalizePendingSection(event.sectionId);
           setActiveSectionId(resolvedSection);
           setFlashToken({
@@ -411,57 +422,6 @@ export function useResumeStudio() {
     };
   }, [applyResumeSnapshot, pushActivityItem, syncDocumentState]);
 
-  const runAction = async (actionId) => {
-    setActivityItems([]);
-    setDraftState(null);
-    setPatchAnimation(null);
-    setActionInProgress(true);
-    await runBridgeAction({
-      action: actionId,
-      resume,
-      selectedField,
-      handlers: {
-        activity: (payload) => {
-          pushActivityItem(payload);
-        },
-        focus: (payload) => {
-          setActiveSectionId(payload.sectionId);
-          setWorkingSection(payload.sectionId);
-          setFlashToken({
-            sectionId: payload.sectionId,
-            id: `${payload.sectionId}-${Date.now()}`
-          });
-        },
-        patch: (payload) => {
-          setDraftState(null);
-          setDiff({ before: payload.before || "", after: payload.after || "" });
-
-          const fid = patchFieldId(payload.sectionId);
-          if (fid) {
-            setPatchAnimation({
-              fieldId: fid,
-              before: payload.before || "",
-              after: payload.after || "",
-              active: true
-            });
-          }
-        },
-        draft: () => {
-          // Suppress draft display during actions — AnimatedText handles the visual
-        },
-        resume: (payload) => {
-          prevResumeRef.current = resume;
-          applyResumeSnapshot(payload);
-        },
-        done: () => {
-          setWorkingSection(null);
-          setActionInProgress(false);
-        }
-      }
-    });
-    setActionInProgress(false);
-  };
-
   const confirmPending = useCallback(async () => {
     if (!pendingPatch) return;
     setWorkingSection(null);
@@ -469,7 +429,6 @@ export function useResumeStudio() {
       const result = await confirmPendingPatch(pendingPatch.id, resume);
       if (result?.resume) applyResumeSnapshot(result.resume, { updatePrevious: true });
       if (pendingPatch.kind !== "batch") {
-        setDiff({ before: pendingPatch.before || "", after: pendingPatch.after || "" });
         const fid = patchFieldId(pendingPatch.sectionId, pendingPatch.index);
         if (fid) {
           setPatchAnimation({
@@ -555,7 +514,6 @@ export function useResumeStudio() {
     const nextResume = created.resume;
     applyResumeSnapshot(nextResume, { updatePrevious: true });
     setCurrentFileName("");
-    setDiff({ before: "", after: "" });
     setPatchAnimation(null);
     setActiveSectionId("education");
     setPendingPatch(null);
@@ -572,7 +530,6 @@ export function useResumeStudio() {
     const nextResume = opened.resume;
     applyResumeSnapshot(nextResume, { updatePrevious: true });
     setCurrentFileName("");
-    setDiff({ before: "", after: "" });
     setPatchAnimation(null);
     setPendingPatch(null);
     await refreshHistory();
@@ -588,10 +545,7 @@ export function useResumeStudio() {
     activeSectionId,
     setActiveSectionId,
     activityItems,
-    diff,
     flashToken,
-    draftState,
-    runAction,
     bridgeStatus,
     currentFileName,
     recentFiles,
@@ -604,7 +558,6 @@ export function useResumeStudio() {
     startNewResume,
     openArchive,
     refreshHistory,
-    actions: useMemo(() => actionDefinitions, []),
     activityState,
     selectedField,
     onSelectField,

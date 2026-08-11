@@ -1,7 +1,7 @@
 import AnimatedText from "../../components/AnimatedText";
 import RichText from "../../components/RichText";
 import DraggableAvatar from "../../components/DraggableAvatar";
-import { fieldId, fieldClass, sectionClass, getDraftText } from "../shared";
+import { fieldId, fieldClass, sectionClass } from "../shared";
 
 function StructuredText({ value }) {
   const lines = String(value || "").split("\n");
@@ -44,15 +44,11 @@ function StructuredText({ value }) {
 
 export default function ProfessionalTemplate({ resume, ctx }) {
   const {
-    activeSectionId, draftState, selectedField, onFieldClick,
+    activeSectionId, selectedField, onFieldClick,
     workingSection, patchAnimation, onPatchAnimationComplete,
     ruleStyle = "thick", avatar, avatarPos, onAvatarPosChange,
-    layoutConfig, fieldStyles = {},
+    layoutConfig, fieldStyles = {}, templateVariant,
   } = ctx;
-
-  const summaryDraft = getDraftText(draftState, "summary");
-  const experienceDraft = getDraftText(draftState, "experience");
-  const projectsDraft = getDraftText(draftState, "projects");
 
   const fc = (sec, idx, field) => fieldClass(selectedField, sec, idx, field);
   const click = (e, fid) => { e.stopPropagation(); onFieldClick?.(fid); };
@@ -66,23 +62,23 @@ export default function ProfessionalTemplate({ resume, ctx }) {
   };
   const withFieldStyle = (fid, base = {}) => ({ ...base, ...fieldStyle(fid) });
   const patchFor = (fid) => patchAnimation?.fieldId === fid ? patchAnimation : null;
-  const renderField = (fid, value, draftFallback) => {
+  const renderField = (fid, value) => {
     const patch = patchFor(fid);
     if (patch?.active) return <AnimatedText after={patch.after} active onComplete={() => onPatchAnimationComplete?.(fid)} />;
-    const display = draftFallback ?? value;
-    return <RichText value={display} fieldId={fid} linkStyle={linkStyleFor(fid)} />;
+    return <RichText value={value} fieldId={fid} linkStyle={linkStyleFor(fid)} />;
   };
-  const renderStructuredField = (fid, value, draftFallback) => {
+  const renderStructuredField = (fid, value) => {
     const patch = patchFor(fid);
     if (patch?.active) return <AnimatedText after={patch.after} active onComplete={() => onPatchAnimationComplete?.(fid)} />;
-    return <StructuredText value={draftFallback ?? value} />;
+    return <StructuredText value={value} />;
   };
 
   const ruleClass = `pro-rule${ruleStyle !== "thick" ? ` ${ruleStyle}` : ""}`;
   const education = Array.isArray(resume.education) ? resume.education : [];
   const skills = Array.isArray(resume.skills) ? resume.skills : [];
-  const summaryText = summaryDraft ?? resume.summary;
+  const summaryText = resume.summary;
   const hasSummary = typeof summaryText === "string" && summaryText.trim().length > 0;
+  const isClassic = templateVariant === "classic";
   const eduLayout = layoutConfig?.education || {};
   const schoolAlign = eduLayout.schoolAlign || "center";
   const majorAlign = eduLayout.majorAlign || "right";
@@ -92,6 +88,22 @@ export default function ProfessionalTemplate({ resume, ctx }) {
     "pro-header"
   );
 
+  const summarySection = hasSummary ? (
+    <section className={sectionClass(activeSectionId, workingSection, "summary")} data-section="summary">
+      <div className="pro-section-head">
+        <h2>个人总结</h2>
+        <div className={ruleClass} />
+      </div>
+      <div
+        className={`pro-body ${fc("summary", null, "text")}`}
+        onClick={(e) => click(e, fieldId("summary", null, "text"))}
+        style={withFieldStyle(fieldId("summary", null, "text"), { fontSize: "var(--r-fs-body, 12px)", whiteSpace: "pre-wrap" })}
+      >
+        {renderField(fieldId("summary", null, "text"), summaryText)}
+      </div>
+    </section>
+  ) : null;
+
   return (
     <div className="pro-page">
       <header className={headerClass}>
@@ -100,6 +112,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
             src={avatar}
             position={avatarPos}
             onPositionChange={onAvatarPosChange}
+            size={isClassic ? 64 : 72}
             className="pro-avatar-topright"
           />
         )}
@@ -115,7 +128,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
           onClick={(e) => click(e, fieldId("header", null, "contact"))}
           style={withFieldStyle(fieldId("header", null, "contact"), { fontSize: "var(--r-fs-muted, 11.5px)" })}
         >
-          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} linkStyle={linkStyleFor(fieldId("header", null, "contact"))} />
+          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} linkStyle={linkStyleFor(fieldId("header", null, "contact"))} emphasizeMetrics={false} />
         </p>
         {resume.title && (
           <p
@@ -123,10 +136,12 @@ export default function ProfessionalTemplate({ resume, ctx }) {
             onClick={(e) => click(e, fieldId("header", null, "title"))}
             style={withFieldStyle(fieldId("header", null, "title"), { fontSize: "var(--r-fs-body, 12px)" })}
           >
-            <RichText value={resume.title} fieldId={fieldId("header", null, "title")} linkStyle={linkStyleFor(fieldId("header", null, "title"))} />
+            <RichText value={resume.title} fieldId={fieldId("header", null, "title")} linkStyle={linkStyleFor(fieldId("header", null, "title"))} emphasizeMetrics={false} />
           </p>
         )}
       </header>
+
+      {isClassic && summarySection}
 
       {education.length > 0 && (
         <section className={sectionClass(activeSectionId, workingSection, "education")} data-section="education">
@@ -188,8 +203,6 @@ export default function ProfessionalTemplate({ resume, ctx }) {
         </div>
         {resume.experience.map((item, index) => {
           const detailsFid = fieldId("experience", index, "details");
-          const detailsPatch = patchFor(detailsFid);
-          const showDraft = index === 0 && experienceDraft !== null && !detailsPatch?.active;
           return (
             <div className="pro-entry" key={`${item.company}-${item.date}`}>
               <div className="pro-entry-head pro-experience-head">
@@ -202,7 +215,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
                 <span className={`pro-date ${fc("experience", index, "date")}`} onClick={(e) => click(e, fieldId("experience", index, "date"))} style={withFieldStyle(fieldId("experience", index, "date"), { fontSize: "var(--r-fs-muted, 12px)" })}>{item.date}</span>
               </div>
               <div className={`pro-body pro-structured-body ${fc("experience", index, "details")}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
-                {renderStructuredField(detailsFid, item.details, showDraft ? experienceDraft : null)}
+                {renderStructuredField(detailsFid, item.details)}
               </div>
             </div>
           );
@@ -216,8 +229,6 @@ export default function ProfessionalTemplate({ resume, ctx }) {
         </div>
         {resume.projects.map((item, index) => {
           const detailsFid = fieldId("projects", index, "details");
-          const detailsPatch = patchFor(detailsFid);
-          const showDraft = index === 0 && projectsDraft !== null && !detailsPatch?.active;
           return (
             <div className="pro-entry" key={`${item.name}-${item.date}`}>
               <div className="pro-entry-head pro-project-head">
@@ -227,12 +238,9 @@ export default function ProfessionalTemplate({ resume, ctx }) {
                 <span className={fc("projects", index, "role")} onClick={(e) => click(e, fieldId("projects", index, "role"))} style={fieldStyle(fieldId("projects", index, "role"))}>
                   <RichText value={item.role} fieldId={fieldId("projects", index, "role")} linkStyle={linkStyleFor(fieldId("projects", index, "role"))} />
                 </span>
-                <span className={`pro-date ${fc("projects", index, "date")}`} onClick={(e) => click(e, fieldId("projects", index, "date"))} style={withFieldStyle(fieldId("projects", index, "date"), { fontSize: "var(--r-fs-muted, 12px)" })}>
-                  {item.date}
-                </span>
               </div>
               <div className={`pro-body pro-structured-body pro-project-body ${fc("projects", index, "details")}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
-                {renderStructuredField(detailsFid, item.details, showDraft ? projectsDraft : null)}
+                {renderStructuredField(detailsFid, item.details)}
               </div>
             </div>
           );
@@ -266,21 +274,7 @@ export default function ProfessionalTemplate({ resume, ctx }) {
         </section>
       )}
 
-      {hasSummary && (
-        <section className={sectionClass(activeSectionId, workingSection, "summary")} data-section="summary">
-          <div className="pro-section-head">
-            <h2>个人总结</h2>
-            <div className={ruleClass} />
-          </div>
-          <div
-            className={`pro-body ${fc("summary", null, "text")}`}
-            onClick={(e) => click(e, fieldId("summary", null, "text"))}
-            style={withFieldStyle(fieldId("summary", null, "text"), { fontSize: "var(--r-fs-body, 12px)", whiteSpace: "pre-wrap" })}
-          >
-            {renderField(fieldId("summary", null, "text"), summaryText)}
-          </div>
-        </section>
-      )}
+      {!isClassic && summarySection}
     </div>
   );
 }

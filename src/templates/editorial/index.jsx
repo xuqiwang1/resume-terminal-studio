@@ -1,7 +1,7 @@
 import AnimatedText from "../../components/AnimatedText";
 import RichText from "../../components/RichText";
 import DraggableAvatar from "../../components/DraggableAvatar";
-import { fieldId, fieldClass, sectionClass, getDraftText } from "../shared";
+import { fieldId, fieldClass, sectionClass } from "../shared";
 
 function StructuredText({ value }) {
   const lines = String(value || "").split("\n");
@@ -32,14 +32,10 @@ function StructuredText({ value }) {
 
 export default function EditorialTemplate({ resume, ctx }) {
   const {
-    activeSectionId, draftState, selectedField, onFieldClick,
+    activeSectionId, selectedField, onFieldClick,
     workingSection, patchAnimation, onPatchAnimationComplete,
     avatar, avatarPos, onAvatarPosChange, layoutConfig, fieldStyles = {}
   } = ctx;
-
-  const summaryDraft = getDraftText(draftState, "summary");
-  const experienceDraft = getDraftText(draftState, "experience");
-  const projectsDraft = getDraftText(draftState, "projects");
 
   const fc = (sec, idx, field) => fieldClass(selectedField, sec, idx, field);
   const click = (e, fid) => { e.stopPropagation(); onFieldClick?.(fid); };
@@ -84,10 +80,10 @@ export default function EditorialTemplate({ resume, ctx }) {
           {resume.name}
         </h2>
         <p className={fc("header", null, "title")} onClick={(e) => click(e, fieldId("header", null, "title"))} style={withFieldStyle(fieldId("header", null, "title"), { fontSize: "var(--r-fs-body, 12px)" })}>
-          <RichText value={resume.title} fieldId={fieldId("header", null, "title")} linkStyle={linkStyleFor(fieldId("header", null, "title"))} />
+          <RichText value={resume.title} fieldId={fieldId("header", null, "title")} linkStyle={linkStyleFor(fieldId("header", null, "title"))} emphasizeMetrics={false} />
         </p>
         <p className={fc("header", null, "contact")} onClick={(e) => click(e, fieldId("header", null, "contact"))} style={withFieldStyle(fieldId("header", null, "contact"), { fontSize: "var(--r-fs-muted, 11px)" })}>
-          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} linkStyle={linkStyleFor(fieldId("header", null, "contact"))} />
+          <RichText value={resume.contact} fieldId={fieldId("header", null, "contact")} linkStyle={linkStyleFor(fieldId("header", null, "contact"))} emphasizeMetrics={false} />
         </p>
       </div>
 
@@ -170,17 +166,16 @@ export default function EditorialTemplate({ resume, ctx }) {
         {resume.experience.map((item, index) => {
           const detailsFid = fieldId("experience", index, "details");
           const detailsPatch = patchFor(detailsFid);
-          const showDraft = index === 0 && experienceDraft !== null && !detailsPatch?.active;
           return (
             <div className="resume-card" key={`${item.company}-${item.date}`}>
               <strong className={fc("experience", index, "role")} onClick={(e) => click(e, fieldId("experience", index, "role"))} style={fieldStyle(fieldId("experience", index, "role"))}>
                 <RichText value={item.role} fieldId={fieldId("experience", index, "role")} linkStyle={linkStyleFor(fieldId("experience", index, "role"))} />{item.role && item.company ? " · " : ""}<RichText value={item.company} fieldId={fieldId("experience", index, "company")} linkStyle={linkStyleFor(fieldId("experience", index, "company"))} />
               </strong>
               <span className={fc("experience", index, "date")} onClick={(e) => click(e, fieldId("experience", index, "date"))} style={fieldStyle(fieldId("experience", index, "date"))}>{item.date}</span>
-              <div className={`${fc("experience", index, "details")} editorial-structured-body ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
+              <div className={`${fc("experience", index, "details")} editorial-structured-body`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
                 {detailsPatch?.active
-                  ? renderAnimated(detailsFid, showDraft ? experienceDraft : item.details)
-                  : <StructuredText value={showDraft ? experienceDraft : item.details} />}
+                  ? renderAnimated(detailsFid, item.details)
+                  : <StructuredText value={item.details} />}
               </div>
             </div>
           );
@@ -192,7 +187,6 @@ export default function EditorialTemplate({ resume, ctx }) {
         {resume.projects.map((item, index) => {
           const detailsFid = fieldId("projects", index, "details");
           const detailsPatch = patchFor(detailsFid);
-          const showDraft = index === 0 && projectsDraft !== null && !detailsPatch?.active;
           return (
             <div className="resume-card" key={`${item.name}-${item.date}`}>
               <strong className={fc("projects", index, "name")} onClick={(e) => click(e, fieldId("projects", index, "name"))} style={fieldStyle(fieldId("projects", index, "name"))}>
@@ -201,24 +195,24 @@ export default function EditorialTemplate({ resume, ctx }) {
               <span className={fc("projects", index, "role")} onClick={(e) => click(e, fieldId("projects", index, "role"))} style={fieldStyle(fieldId("projects", index, "role"))}>
                 <RichText value={item.role} fieldId={fieldId("projects", index, "role")} linkStyle={linkStyleFor(fieldId("projects", index, "role"))} />{item.role && item.date ? " · " : ""}{item.date}
               </span>
-              <div className={`${fc("projects", index, "details")} editorial-structured-body ${showDraft ? "drafting-text" : ""}`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
+              <div className={`${fc("projects", index, "details")} editorial-structured-body`} onClick={(e) => click(e, detailsFid)} style={withFieldStyle(detailsFid, { fontSize: "var(--r-fs-body, 12px)" })}>
                 {detailsPatch?.active
-                  ? renderAnimated(detailsFid, showDraft ? projectsDraft : item.details)
-                  : <StructuredText value={showDraft ? projectsDraft : item.details} />}
+                  ? renderAnimated(detailsFid, item.details)
+                  : <StructuredText value={item.details} />}
               </div>
             </div>
           );
         })}
       </section>
 
-      {typeof (summaryDraft ?? resume.summary) === "string" && (summaryDraft ?? resume.summary).trim() && (
+      {typeof resume.summary === "string" && resume.summary.trim() && (
         <section className={sectionClass(activeSectionId, workingSection, "summary")} data-section="summary">
           <h3>个人总结</h3>
-          <div className={`resume-card ${summaryDraft !== null ? "drafting" : ""}`}>
+          <div className="resume-card">
             <p className={fc("summary", null, "text")} onClick={(e) => click(e, fieldId("summary", null, "text"))} style={{ whiteSpace: "pre-wrap", ...fieldStyle(fieldId("summary", null, "text")) }}>
               {patchFor(fieldId("summary", null, "text"))?.active
-                ? renderAnimated(fieldId("summary", null, "text"), summaryDraft ?? resume.summary)
-                : <RichText value={summaryDraft ?? resume.summary} fieldId={fieldId("summary", null, "text")} linkStyle={linkStyleFor(fieldId("summary", null, "text"))} />}
+                ? renderAnimated(fieldId("summary", null, "text"), resume.summary)
+                : <RichText value={resume.summary} fieldId={fieldId("summary", null, "text")} linkStyle={linkStyleFor(fieldId("summary", null, "text"))} />}
             </p>
           </div>
         </section>

@@ -1,0 +1,71 @@
+import { FONT_OPTIONS, COLOR_SCHEMES } from "../components/LeftStylePanel";
+import { buildLinkStyleVars } from "./linkStyle";
+
+export function buildResumePageStyle({
+  fontId,
+  colorId,
+  lineHeight,
+  sectionGap,
+  pagePadding,
+  fontSize,
+  fitScale = 1,
+  layoutConfig,
+}) {
+  const font = FONT_OPTIONS.find((item) => item.id === fontId) || FONT_OPTIONS[0];
+  const color = COLOR_SCHEMES.find((item) => item.id === colorId) || COLOR_SCHEMES[0];
+  const spacePx = (value, min = 0) => `${Math.max(min, Math.round(value * fitScale * 10) / 10)}px`;
+  const cardHeadingSize = Math.round(fontSize.heading * 0.9 * 10) / 10;
+
+  return {
+    "--r-font": font.family,
+    "--r-heading": color.heading,
+    "--r-body": color.body,
+    "--r-muted": color.muted,
+    "--r-lh": lineHeight,
+    "--r-sec-gap": `${sectionGap}px`,
+    "--r-entry-gap": `${Math.max(4, sectionGap - 4)}px`,
+    "--r-pad": `${pagePadding}px`,
+    "--r-fit-scale": fitScale,
+    "--r-fs-heading": `${fontSize.heading}px`,
+    "--r-fs-body": `${fontSize.body}px`,
+    "--r-fs-muted": `${fontSize.muted}px`,
+    "--r-card-heading": `${cardHeadingSize}px`,
+    "--r-header-pad": spacePx(18),
+    "--r-header-margin": spacePx(22),
+    "--r-header-gap": spacePx(8),
+    "--r-pro-header-pad": spacePx(6),
+    "--r-contact-gap": spacePx(5),
+    "--r-intent-gap": spacePx(3),
+    "--r-section-head-gap": spacePx(6),
+    "--r-entry-head-gap": spacePx(10),
+    "--r-grid-gap": spacePx(12),
+    "--r-classic-header-height": spacePx(68, 48),
+    "--r-classic-header-pad": spacePx(12),
+    "--r-classic-contact-gap": spacePx(6),
+    "--r-classic-intent-gap": spacePx(2),
+    "--r-classic-row-gap": spacePx(6),
+    "--r-classic-body-top": spacePx(3),
+    "--r-classic-detail-top": spacePx(2),
+    "--r-classic-stage-top": spacePx(4),
+    "--r-classic-skill-gap": spacePx(4),
+    "--r-section-pad-top": spacePx(8),
+    "--r-section-pad-x": spacePx(10),
+    "--r-section-pad-bottom": spacePx(2),
+    "--r-section-title-gap": spacePx(10),
+    "--r-card-pad": spacePx(14),
+    "--r-inline-gap": spacePx(4),
+    "--r-rule-gap": spacePx(4, 1),
+    "--r-body-top": spacePx(4),
+    "--r-stage-top": spacePx(6),
+    "--r-line-gap": spacePx(2),
+    "--r-edu-gap": spacePx(14),
+    "--r-edu-row-gap": spacePx(2),
+    "--r-skill-gap": spacePx(3),
+    "--r-skill-heading": `${Math.round(fontSize.body * 1.25 * 10) / 10}px`,
+    "--r-skill-inline-gap": spacePx(8),
+    "--r-editorial-body-gap": spacePx(8),
+    "--r-editorial-line-gap": spacePx(4),
+    "--r-editorial-inline-gap": spacePx(10),
+    ...buildLinkStyleVars(layoutConfig?.linkStyle),
+  };
+}

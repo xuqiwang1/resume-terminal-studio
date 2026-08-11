@@ -8,10 +8,6 @@ export function isSelected(selectedField, sectionId, index, field) {
   return selectedField === fieldId(sectionId, index, field);
 }
 
-export function getDraftText(draftState, sectionId) {
-  return draftState?.sectionId === sectionId ? draftState.text : null;
-}
-
 export function sectionClass(activeSectionId, workingSection, id) {
   const classes = ["resume-section"];
   if (activeSectionId === id) classes.push("active-section");

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export default function DraggableAvatar({ src, position, onPositionChange, size = 56, className = "" }) {
+export default function DraggableAvatar({ src, position, onPositionChange, size = 56, className = "", draggable = true }) {
   const ref = useRef(null);
   const dragging = useRef(false);
   const origin = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
@@ -8,6 +8,7 @@ export default function DraggableAvatar({ src, position, onPositionChange, size 
   const pos = position || { x: 0, y: 0 };
 
   const onPointerDown = useCallback((e) => {
+    if (!draggable) return;
     e.preventDefault();
     e.stopPropagation();
     dragging.current = true;
@@ -18,7 +19,7 @@ export default function DraggableAvatar({ src, position, onPositionChange, size 
       startY: e.clientY,
     };
     ref.current?.setPointerCapture(e.pointerId);
-  }, [pos.x, pos.y]);
+  }, [draggable, pos.x, pos.y]);
 
   const onPointerMove = useCallback((e) => {
     if (!dragging.current) return;
@@ -55,9 +56,9 @@ export default function DraggableAvatar({ src, position, onPositionChange, size 
         height: size,
         transform: `translate(${pos.x}px, ${pos.y}px)`,
       }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
+      onPointerDown={draggable ? onPointerDown : undefined}
+      onPointerMove={draggable ? onPointerMove : undefined}
+      onPointerUp={draggable ? onPointerUp : undefined}
     >
       <img src={src} alt="" draggable={false} />
       <div className="drag-handle" title="拖动头像" />

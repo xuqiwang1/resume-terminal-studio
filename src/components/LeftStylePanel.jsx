@@ -1,14 +1,13 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { TEMPLATE_REGISTRY } from "../templates/registry";
 import { SECTION_LABELS } from "../hooks/resumeStudioHelpers";
 import { LINK_STYLE_MODES, normalizeLinkStyle } from "../lib/linkStyle";
 
 const FONT_OPTIONS = [
   { id: "serif", label: "宋体", family: "'Noto Serif SC', 'Songti SC', 'SimSun', serif" },
-  { id: "sans", label: "黑体", family: "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" },
+  { id: "mixed", label: "中英组合", family: "Georgia, 'Times New Roman', 'PingFang SC', 'Microsoft YaHei', serif" },
   { id: "system", label: "系统", family: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" },
   { id: "kai", label: "楷体", family: "'Kaiti SC', 'STKaiti', 'KaiTi', serif" },
-  { id: "mono", label: "等宽", family: "'JetBrains Mono', 'SF Mono', 'Menlo', 'Noto Sans SC', monospace" },
 ];
 
 const COLOR_SCHEMES = [
@@ -30,6 +29,26 @@ export { FONT_OPTIONS, COLOR_SCHEMES };
 
 function ChipGroup({ children }) {
   return <div className="lsp-chips">{children}</div>;
+}
+
+/* A collapsible section. "版式" decisions are made once and stay open; density
+   and ornament are fiddled with repeatedly, so they collapse to keep the panel
+   from reading as one flat wall of nine equal-weight controls. */
+function Fold({ title, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={`lsp-fold${open ? " open" : ""}`}>
+      <button
+        className="lsp-fold-head"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="lsp-fold-caret" aria-hidden="true" />
+        {title}
+      </button>
+      {open && <div className="lsp-fold-body">{children}</div>}
+    </div>
+  );
 }
 
 function SliderRow({ label, value, children }) {
@@ -113,7 +132,11 @@ function DocumentInspector({
       </div>
 
       <div className="lsp-group">
-        <label className="lsp-label">字号</label>
+        <label className="lsp-label">配色</label>
+        <ColorChips activeColorId={colorId} onPickColor={(c) => onColorChange(c.id)} />
+      </div>
+
+      <Fold title="字号">
         <div style={{ display: "grid", gap: 6, width: "100%" }}>
           <SliderRow label="标题" value={fontSize.heading}>
             <input
@@ -140,19 +163,11 @@ function DocumentInspector({
             />
           </SliderRow>
         </div>
-      </div>
+      </Fold>
 
-      <div className="lsp-group">
-        <label className="lsp-label">配色</label>
-        <ColorChips activeColorId={colorId} onPickColor={(c) => onColorChange(c.id)} />
-      </div>
-
-      <LinkStyleInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
-
-      <div className="lsp-group">
-        <label className="lsp-label">密度</label>
+      <Fold title="密度">
         <div style={{ display: "grid", gap: 8, width: "100%" }}>
-          <SliderRow value={lineHeight.toFixed(2)}>
+          <SliderRow label="行距" value={lineHeight.toFixed(2)}>
             <input
               type="range" className="lsp-slider"
               min={1.2} max={2.2} step={0.05}
@@ -160,7 +175,7 @@ function DocumentInspector({
               onChange={(e) => onLineHeightChange(+e.target.value)}
             />
           </SliderRow>
-          <SliderRow value={`${sectionGap}px`}>
+          <SliderRow label="区块" value={`${sectionGap}px`}>
             <input
               type="range" className="lsp-slider"
               min={4} max={32} step={1}
@@ -168,7 +183,7 @@ function DocumentInspector({
               onChange={(e) => onSectionGapChange(+e.target.value)}
             />
           </SliderRow>
-          <SliderRow value={`${pagePadding}px`}>
+          <SliderRow label="页边" value={`${pagePadding}px`}>
             <input
               type="range" className="lsp-slider"
               min={16} max={64} step={2}
@@ -177,22 +192,25 @@ function DocumentInspector({
             />
           </SliderRow>
         </div>
-      </div>
+      </Fold>
 
-      <div className="lsp-group">
-        <label className="lsp-label">分隔线</label>
-        <ChipGroup>
-          {RULE_STYLES.map((r) => (
-            <button
-              key={r.id}
-              className={`lsp-chip ${ruleStyle === r.id ? "active" : ""}`}
-              onClick={() => onRuleStyleChange(r.id)}
-            >
-              {r.label}
-            </button>
-          ))}
-        </ChipGroup>
-      </div>
+      <Fold title="装饰">
+        <div className="lsp-subgroup">
+          <label className="lsp-label">分隔线</label>
+          <ChipGroup>
+            {RULE_STYLES.map((r) => (
+              <button
+                key={r.id}
+                className={`lsp-chip ${ruleStyle === r.id ? "active" : ""}`}
+                onClick={() => onRuleStyleChange(r.id)}
+              >
+                {r.label}
+              </button>
+            ))}
+          </ChipGroup>
+        </div>
+        <LinkStyleInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
+      </Fold>
     </>
   );
 }
@@ -206,7 +224,7 @@ function LinkStyleInspector({ layoutConfig, onLayoutConfigChange }) {
     });
 
   return (
-    <div className="lsp-group">
+    <div className="lsp-subgroup">
       <label className="lsp-label">链接样式</label>
       <ChipGroup>
         {LINK_STYLE_MODES.map((mode) => (
@@ -463,8 +481,7 @@ export default function LeftStylePanel({
       />
 
       {!hasFieldSelection && (
-        <div className="lsp-group">
-          <label className="lsp-label">头像</label>
+        <Fold title="头像">
           <div className="lsp-avatar-area">
             <div className="lsp-avatar-preview">
               {avatar
@@ -485,7 +502,7 @@ export default function LeftStylePanel({
             </div>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleAvatarUpload} />
           </div>
-        </div>
+        </Fold>
       )}
     </aside>
   );

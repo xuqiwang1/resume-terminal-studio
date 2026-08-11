@@ -77,13 +77,6 @@ export const initialActivity = [
   {
     label: "Ready",
     state: "Idle",
-    text: "界面已连接本地 bridge。请在你电脑自己的 Terminal 里运行 resume-agent 命令。"
+    text: "界面已连接本地 bridge。AI agent 可通过 resume CLI 提交待确认改动。"
   }
-];
-
-export const actionDefinitions = [
-  { id: "jd", label: "根据 JD 优化整份简历" },
-  { id: "summary", label: "重写个人总结" },
-  { id: "experience", label: "优化工作经历" },
-  { id: "pdf", label: "生成投递版 PDF" }
 ];

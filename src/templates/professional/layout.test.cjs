@@ -27,9 +27,10 @@ function wired(fid) {
 check("projects render a dedicated header row", template.includes("pro-project-head"));
 check("project name is a first-class selectable field", template.includes('fieldId("projects", index, "name")'));
 check("project role is a first-class selectable field", template.includes('fieldId("projects", index, "role")'));
-check("project date is a first-class selectable field", template.includes('fieldId("projects", index, "date")'));
+check("project entries omit the right-side date", !template.includes('fieldId("projects", index, "date")'));
 check("project details stay in the structured body", template.includes("pro-project-body"));
-check("projects share the three-column alignment model", css.includes(".pro-project-head") && css.includes("grid-template-columns: max-content 1fr max-content"));
+check("projects use a two-column header without a date", css.includes(".pro-project-head") && css.includes("grid-template-columns: max-content 1fr;"));
+check("professional body text shares section rule content edges", css.includes(".template-professional .pro-body.resume-field") && css.includes("padding-left: 0;") && css.includes("padding-right: 0;"));
 check("professional header participates in active section state", template.includes('sectionClass(activeSectionId, workingSection, "header")'));
 check("professional structured details render through RichText", rendersThroughRichText(template, { value: "labeled[2]" }) && rendersThroughRichText(template, { value: "trimmed" }));
 check("professional contact renders through RichText", wired('fieldId("header", null, "contact")'));

@@ -8,16 +8,18 @@ import { useResumeStudio } from "./hooks/useResumeStudio";
 import { useTextSelection } from "./hooks/useTextSelection";
 import { exportPdf, isDesktopApp } from "./lib/fileClient";
 import { A4_PAGE_HEIGHT_PX, A4_OVERFLOW_TOLERANCE_PX } from "./lib/a4Page";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function App() {
   const desktop = isDesktopApp();
   const resumePageRef = useRef(null);
   const printPageRef = useRef(null);
+  const [autoFit, setAutoFit] = useState(true);
+  const [adaptiveStyle, setAdaptiveStyle] = useState(null);
   const textSelection = useTextSelection(resumePageRef);
   const {
-    resume, activeSectionId, flashToken, draftState,
-    runAction, bridgeStatus, currentFileName,
+    resume, activeSectionId, flashToken,
+    bridgeStatus, currentFileName,
     saveCurrentResume, openLatestResume,
     resumeArchives, historyPanelOpen, setHistoryPanelOpen,
     archiveCurrent, startNewResume, openArchive,
@@ -126,7 +128,6 @@ export default function App() {
           resume={resume}
           activeSectionId={activeSectionId}
           flashToken={flashToken}
-          draftState={draftState}
           selectedField={selectedField}
           onSelectField={onSelectField}
           workingSection={workingSection}
@@ -145,6 +146,10 @@ export default function App() {
           onAvatarPosChange={setAvatarPos}
           layoutConfig={layoutConfig}
           fieldStyles={fieldStyles}
+          autoFit={autoFit}
+          adaptiveStyle={adaptiveStyle}
+          onAutoFitChange={setAutoFit}
+          onAdaptiveStyleChange={setAdaptiveStyle}
           onViewChange={syncView}
         />
       </main>
@@ -178,6 +183,7 @@ export default function App() {
         avatarPos={avatarPos}
         layoutConfig={layoutConfig}
         fieldStyles={fieldStyles}
+        adaptiveStyle={autoFit ? adaptiveStyle : null}
       />
     </div>
   );

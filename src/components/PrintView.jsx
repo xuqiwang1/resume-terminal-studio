@@ -1,7 +1,6 @@
 import { forwardRef, useMemo } from "react";
 import { getTemplate } from "../templates/registry";
-import { FONT_OPTIONS, COLOR_SCHEMES } from "./LeftStylePanel";
-import { buildLinkStyleVars } from "../lib/linkStyle";
+import { buildResumePageStyle } from "../lib/resumePageStyle";
 
 /**
  * PrintView: A hidden, non-scaled A4 view used exclusively for PDF export.
@@ -14,31 +13,16 @@ const PrintView = forwardRef(function PrintView({
   resume, templateId, fontId, colorId,
   lineHeight, sectionGap, pagePadding, fontSize,
   ruleStyle, avatar, avatarPos, layoutConfig, fieldStyles,
+  adaptiveStyle = null,
 }, ref) {
   const template = useMemo(() => getTemplate(templateId || "professional"), [templateId]);
   const TemplateComponent = template.Component;
 
-  const font = FONT_OPTIONS.find((f) => f.id === fontId) || FONT_OPTIONS[0];
-  const color = COLOR_SCHEMES.find((c) => c.id === colorId) || COLOR_SCHEMES[0];
-
-  const pageStyle = {
-    "--r-font": font.family,
-    "--r-heading": color.heading,
-    "--r-body": color.body,
-    "--r-muted": color.muted,
-    "--r-lh": lineHeight,
-    "--r-sec-gap": `${sectionGap}px`,
-    "--r-entry-gap": `${Math.max(4, sectionGap - 4)}px`,
-    "--r-pad": `${pagePadding}px`,
-    "--r-fs-heading": `${fontSize.heading}px`,
-    "--r-fs-body": `${fontSize.body}px`,
-    "--r-fs-muted": `${fontSize.muted}px`,
-    ...buildLinkStyleVars(layoutConfig?.linkStyle),
-  };
+  const effectiveStyle = adaptiveStyle || { lineHeight, sectionGap, pagePadding, fontSize };
+  const pageStyle = buildResumePageStyle({ ...effectiveStyle, fontId, colorId, layoutConfig });
 
   const ctx = {
     activeSectionId: null,
-    draftState: null,
     selectedField: null,
     onFieldClick: null,
     workingSection: null,
@@ -55,11 +39,13 @@ const PrintView = forwardRef(function PrintView({
   return (
     <div className="print-view" aria-hidden="true">
       <div
-        className={`print-page resume-page template-${template.id}`}
+        className={`print-page resume-page template-${template.id}${adaptiveStyle ? " auto-fit" : ""}`}
         ref={ref}
         style={pageStyle}
       >
-        <TemplateComponent resume={resume} ctx={ctx} />
+        <div className="resume-content">
+          <TemplateComponent resume={resume} ctx={ctx} />
+        </div>
       </div>
     </div>
   );

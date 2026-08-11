@@ -1,7 +1,7 @@
 import { toSegments } from "../lib/richText";
 import { linkifyText } from "../lib/linkifyText";
 
-export default function RichText({ value, fieldId, linkStyle }) {
+export default function RichText({ value, fieldId, linkStyle, emphasizeMetrics = true }) {
   const segments = toSegments(value);
 
   return (
@@ -32,11 +32,12 @@ export default function RichText({ value, fieldId, linkStyle }) {
             );
           }
 
-          return splitMetricText(part.text).map((metricPart, k) => (
+          const textParts = emphasizeMetrics ? splitMetricText(part.text) : [{ text: part.text, metric: false }];
+          return textParts.map((metricPart, k) => (
             <span
               key={`${key}-${k}`}
-              style={metricPart.metric ? { ...style, fontWeight: 700 } : style}
-              data-rich-metric={metricPart.metric ? "true" : undefined}
+              style={metricPart.metric && emphasizeMetrics ? { ...style, fontWeight: 700 } : style}
+              data-rich-metric={metricPart.metric && emphasizeMetrics ? "true" : undefined}
             >
               {metricPart.text}
             </span>
