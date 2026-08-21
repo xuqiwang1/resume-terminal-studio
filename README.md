@@ -1,143 +1,140 @@
 # Resume Studio
 
-Resume Studio 是一个本地优先的简历编辑工作台。它把桌面简历预览、本机素材管理、终端 AI agent 和人工确认流程连接在一起，让简历内容可以被 AI 辅助改写，但最终写入仍由用户确认。
+Resume Studio 是一个面向求职者与技术人员的本地优先（Local-First）桌面端简历编辑工作台。它将即时 A4 简历排版预览、本机多格式原始素材管理、终端 AI 智能体辅助与人工审核确认流程紧密连接，让简历内容能够在 AI 协助下高质量迭代，同时保证用户对简历数据的绝对掌控与隐私安全。
 
-## 核心方向
+---
 
-- **简历编辑优先**：围绕 A4 简历预览、结构化内容、素材摄入和 PDF 导出设计，不做通用文档或画布工具。
-- **本地优先**：真实简历、素材和运行数据默认保存在本机工作区，不依赖云端账号。
-- **终端联动**：Codex、Claude Code、Antigravity CLI 等 agent 通过本地 MCP server 接入，而不是让网页接管终端。
-- **AI 提议，人确认**：agent 只能提交待确认改动；用户接受后才会写入简历。
-- **过程可见**：工作台展示当前简历、待确认 diff、运行活动、历史存档和导出状态，减少黑箱改写。
-- **可重塑不丢稿**：新建空白模板或恢复历史版本前会自动保存当前简历快照。
+## 核心特性
+
+* **简历编辑专精**：围绕标准 A4 单页排版、结构化内容组织、本机原始素材摄入和高保真 PDF 导出设计，拒绝冗余复杂的通用文档或画布功能。
+* **本地优先与隐私保护**：真实简历、项目素材、历史版本与运行数据均保存在本地计算机，不依赖任何云端账号，彻底杜绝个人职业资产与隐私泄露风险。
+* **4 款精选简历模板矩阵**：
+  * **专业商务 (Professional)**：严谨求职标准版式，信息密度高，层级分明，通用性强。
+  * **经典求职 (Classic)**：头像右置、标题下划线分隔，紧凑单列设计，适合大篇幅经历密排。
+  * **现代风尚 (Modern)**：典雅蓝调强调色，居中标题与呼吸感排版，支持条目加粗导语。
+  * **商务精英 (Executive)**：三列专业能力网格，深蓝沉稳质感，模块化版式支持灵活混排。
+* **A4 单页智能自适应**：
+  * 内置受限二分自适应算法，一键微调行距与字号，平滑消除页面溢出并同步至导出引擎。
+  * 溢出精准归因：当内容超出单页承载范围时，实时高亮并精确定位具体溢出的内容模块。
+* **左侧版式与样式控制台**：
+  * 支持经历与内容模块上下拖拽重排，并实时自动保存。
+  * 丰富的超链接样式选项（默认蓝、正文继承色、下划线开关）。
+  * 细粒度字号、行距、页边距、强调色及头像自由拖拽定位。
+* **AI 提议，人工把关**：
+  * 终端智能体（Codex、Claude Code、Antigravity 等）通过本地模型上下文协议（MCP）接入。
+  * 智能体仅能提交带有证据溯源与风险分级的待确认补丁，用户在界面中审阅差异对比后确认写入。
+* **防丢失与冲突防护**：
+  * 每次接受 AI 改动前自动归档快照（最多保留 40 个自动检查点）。
+  * 智能冲突检测：若待确认补丁基于的旧内容已被人工编辑，将提示并阻止无感覆盖。
+
+---
 
 ## 项目结构
 
 ```text
-src/                  React 简历工作台
-electron/             Electron 主进程与桌面运行时
-bridge/               本地 bridge、MCP server、简历写入引擎
-site/                 独立官网 / landing page，不属于 APP 内部页面
-docs/                 架构与 agent 接入说明
-build/                APP 图标资源
-workspace-template/   打包用的非个人化默认简历模板
-workspace/            本地开发工作区占位，不提交真实简历和素材
+src/                  React 简历前端界面与模板渲染组件
+electron/             Electron 主进程与桌面端运行时环境
+bridge/               本地 HTTP 桥接服务、MCP 服务与简历写入引擎
+site/                 独立产品官网（展示页面），独立于桌面端应用
+docs/                 架构设计与智能体接入说明文档
+build/                桌面端应用图标与打包构建资源
+workspace-template/   打包分发的默认非个人化空白简历模板
+workspace/            本地开发工作区占位目录（不提交真实简历与素材）
 ```
 
-## 本地开发
+---
 
-安装依赖：
+## 本地开发与构建
+
+### 1. 安装依赖
 
 ```bash
 npm install
 ```
 
-启动桌面开发版：
+### 2. 运行桌面开发版
 
 ```bash
 npm run dev:desktop
 ```
 
-启动 bridge：
+### 3. 运行本地桥接服务（供终端命令行或独立前端调试使用）
 
 ```bash
 npm run dev:bridge
 ```
 
-构建 macOS APP：
-
-```bash
-npm run build:desktop
-```
-
-构建并安装到 `/Applications`（同时清理 `release/mac-arm64/Resume Studio.app`，避免搜索里出现两份 APP）：
-
-```bash
-npm run install:desktop
-```
-
-运行测试：
+### 4. 运行自动化测试
 
 ```bash
 npm test
 ```
 
-预览独立官网：
+### 5. 打包 macOS 桌面应用
 
 ```bash
-open site/index.html
+npm run build:desktop
 ```
 
-构建独立官网静态输出：
+### 6. 安装应用到「应用程序」目录
+
+该命令会自动构建并将应用安装至 `/Applications/Resume Studio.app`，同时清理打包临时目录避免系统检索冲突：
 
 ```bash
+npm run install:desktop
+```
+
+### 7. 预览与构建产品官网
+
+```bash
+# 本地预览官网
+open site/index.html
+
+# 静态打包官网（输出至 site-dist/）
 npm run site:build
 ```
 
-官网输出目录为 `site-dist/`，属于生成产物，不提交到 GitHub。
+---
 
-## 素材摄入
+## 本机素材摄入
 
-把实习文档、项目笔记、数据表等材料放入工作区的 `materials/` 目录，然后运行：
+将日常的项目总结、实习笔记、数据表格等原始材料直接放入工作区的 `materials/` 目录中，然后运行：
 
 ```bash
 npm run ingest
 ```
 
-摄入结果会写入 `materials/.extracted/*.md`，终端 agent 可以读取这些干净文本，再基于真实素材写简历内容。
+摄入程序会自动提取并生成规范的 Markdown 文件存放在 `materials/.extracted/*.md` 中。终端智能体可直接读取这些结构化文本，基于真实经历撰写简历内容。
 
-支持范围：
+**目前支持的素材格式：**
+* 纯文本 / Markdown（`.txt`、`.md`）
+* 文字版 PDF 文档
+* Excel 表格（`.xlsx`，自动将各工作表转换为 Markdown 表格）
 
-- `.md` / `.txt`：直接读取
-- 文字版 PDF：抽取文本
-- `.xlsx`：按 sheet 转成 markdown 表格
+---
 
-暂不处理扫描件 OCR、复杂表格版式还原、Word/PowerPoint 解析。
+## 终端智能体与 MCP 接入
 
-## MCP 接入
+Resume Studio 内置了标准的本地模型上下文协议（Model Context Protocol / MCP）服务：
+* **源码开发路径**：`bridge/mcp-server.cjs`
+* **已安装应用路径**：`/Applications/Resume Studio.app/Contents/Resources/bridge/mcp-server.cjs`
 
-Resume Studio 自带本地 MCP server：
+### 核心接口列表
 
-- 源码开发版：`bridge/mcp-server.cjs`
-- 已安装 APP：`/Applications/Resume Studio.app/Contents/Resources/bridge/mcp-server.cjs`
-
-核心工具：
-
-| 工具 | 作用 |
+| 接口名称 | 功能描述 |
 |---|---|
-| `get_context` | 读取当前文档、页码、选中字段、简历、pending patch 和 workspace 诊断 |
-| `get_resume` | 读取当前简历和工作区路径 |
-| `get_materials` | 一次读取已抽取素材，避免 agent 自己慢慢找文件 |
-| `propose_edit` | 提交一项待确认改动，包含 name/title/contact/正文 |
-| `propose_batch_edit` | 一次提交一组结构化待确认改动，适合教育/项目/多字段改写 |
-| `get_pending_patch` | 查看当前待确认项 |
-| `get_activity` | 读取最近活动 |
-| `get_selection` | 读取用户当前选中的字段 |
+| `get_context` | 读取当前文档信息、页码状态、用户选中字段、完整简历、待确认补丁与工作区对齐诊断 |
+| `get_resume` | 获取当前简历内容与工作区目录路径 |
+| `get_materials` | 一键获取已摄入的全部结构化素材文本，省去智能体自行翻找文件的时间 |
+| `propose_edit` | 提交单项字段的待确认修改建议（支持姓名、头衔、联系方式及经历正文） |
+| `propose_batch_edit` | 批量提交一组结构化待确认改动，适用于教育经历、项目经历或多字段协同修改 |
+| `get_pending_patch` | 查看当前尚未确认的修改补丁 |
+| `get_activity` | 获取最近的系统操作与编辑记录 |
+| `get_selection` | 获取用户在界面中当前点击选中的字段位置 |
 
-所有 AI 写入都必须走 `propose_edit` 或 `propose_batch_edit`。agent 负责读取素材并写好最终文案，Resume Studio 只暂存改动并展示 diff，不替 agent 二次改写；接受/拒绝只能在 APP 工作台里完成，MCP 和 `resume-agent` CLI 都不能替用户确认。
+### 客户端配置示例
 
-Resume Studio 会把右侧当前文档身份写入 `context-state.json`，包括 `documentId`、`revision` 和 `activeResumePath`。这些字段现在由 bridge 服务端统一生成和递增：`/api/resume/new`、`/api/resume/history/open`、`/api/files/open`、`/api/files/save` 会在切换 active resume 的同一次请求里原子更新 document binding，并清掉 stale pending。MCP 在提案前会检查 App 当前文档路径和自己的 workspace 是否一致；不一致时直接报错，不生成 pending patch。pending patch 也会绑定创建时的 `documentId/revision`，用户新建模板、打开历史记录或切换文件后，旧 pending 会被清空或拒绝确认，避免把旧简历的 AI 改动应用到新简历上。
-
-## 历史存档
-
-工作区会维护 `history/` 快照目录。用户可以：
-
-- 点击「保存当前版本」手动生成快照
-- 点击「新建模板」自动归档当前简历并打开非个人化空白模板
-- 从「历史」面板恢复旧版本；恢复前也会自动归档当前状态
-
-历史文件属于本机运行数据，不应提交到 GitHub。
-
-### Codex CLI
-
-如果你只是想接入 **OpenAI 官方文档 MCP**，官方当前推荐直接用 Codex CLI 添加远程 HTTP server：
-
-```bash
-codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp
-codex mcp list
-```
-
-Resume Studio 自己这个 MCP server 仍然是**本地 `stdio` 进程**，下面继续用 `~/.codex/config.toml` 配置：
+#### 1. Codex 命令行配置
 
 编辑 `~/.codex/config.toml`：
 
@@ -151,9 +148,9 @@ args = ["/Applications/Resume Studio.app/Contents/Resources/bridge/mcp-server.cj
 WORKSPACE_DIR = "/Users/your-name/Documents/ResumeStudio"
 ```
 
-源码开发版把 `args` 改成项目里的 `bridge/mcp-server.cjs`，把 `WORKSPACE_DIR` 改成项目里的 `workspace`。
+*(源码开发模式下，请将 `args` 指向项目内的 `bridge/mcp-server.cjs`，并将 `WORKSPACE_DIR` 设置为项目的 `workspace` 目录。)*
 
-### Antigravity CLI (`agy`)
+#### 2. Antigravity 命令行 (`agy`) 配置
 
 编辑 `~/.gemini/antigravity-cli/mcp_config.json`：
 
@@ -173,56 +170,46 @@ WORKSPACE_DIR = "/Users/your-name/Documents/ResumeStudio"
 }
 ```
 
-启动 `agy` 后运行 `/mcp`，确认 `resume-studio` 已加载。
+启动 `agy` 后输入 `/mcp`，检查并确认 `resume-studio` 工具已正常加载。
 
-如果 `agy` 仍然显示旧工具（如 `confirm_patch`、`set_title`），关闭 `agy` 后删除缓存再启动：
+---
 
-```bash
-rm -rf ~/.gemini/antigravity-cli/mcp/resume-studio
-agy
-```
+## 推荐协作工作流
 
-新版工具列表不应包含 `confirm_patch`、`reject_patch`、`set_title`、`set_contact`。
-
-## 推荐工作流
-
-1. 打开 Resume Studio。
-2. 把素材放进工作区 `materials/`，运行 `npm run ingest`。
+1. 启动并打开 **Resume Studio** 桌面应用。
+2. 将参考资料和项目笔记放入工作区 `materials/` 目录，执行 `npm run ingest` 提取素材。
 3. 在终端启动 Codex、Claude Code 或 `agy`。
-4. 让 agent 先调用 `get_context`，确认 `workspaceDiagnostics.aligned` 为 `true`，再调用 `get_materials`。
-5. agent 写好文案后，单点改动调用 `propose_edit`，成组任务调用 `propose_batch_edit`。
-6. 你在工作台确认或拒绝改动。
+4. 智能体先调用 `get_context`，确认 `workspaceDiagnostics.aligned` 为 `true`，再通过 `get_materials` 查阅经历素材。
+5. 智能体拟定修改建议后，单点改动调用 `propose_edit`，成组重构调用 `propose_batch_edit`。
+6. 用户在桌面应用界面中审阅差异对比与证据来源，点击「接受」应用修改或点击「拒绝」放弃变更。
 
-## GitHub 上传边界
+---
 
-应提交：
+## 历史存档与快照管理
 
-- `src/`
-- `electron/`
-- `bridge/`
-- `site/`
-- `docs/`
-- `build/icon.svg`
-- `build/icon.icns`
-- `workspace-template/`
-- `workspace/materials/.gitkeep`
-- `package.json` / `package-lock.json` / `vite.config.js`
+工作区会在本地维护 `history/` 快照目录，提供多重防丢失保障：
+* 点击顶部「保存当前版本」可手动生成具名快照。
+* 点击「新建模板」会自动归档当前简历，并打开初始空白模板。
+* 在「历史」面板中可以随时预览或恢复任意历史版本；恢复操作前同样会自动保存当前工作快照。
 
-不应提交：
+---
 
-- `node_modules/`
-- `dist/`
-- `release/`
-- `site-dist/`
-- `workspace/active-resume.json`
-- `workspace/materials/` 里的真实素材
-- `workspace/materials/.extracted/`
-- `workspace/*.rts.json`
-- `workspace/history/`
-- 本机日志、缓存、系统文件
+## 代码仓库提交规范
 
-真实简历和素材建议只保留在本机工作区，例如安装版默认的 `~/Documents/ResumeStudio`。
+**应当提交的内容：**
+* 核心源码与组件（`src/`、`electron/`、`bridge/`、`site/`、`docs/`）
+* 应用图标与配置资源（`build/`）
+* 默认非个人化空白简历模板（`workspace-template/`）
+* 项目基础配置（`package.json`、`vite.config.js` 等）
 
-## License
+**严禁提交的内容：**
+* 依赖包与编译输出（`node_modules/`、`dist/`、`release/`、`site-dist/`）
+* 真实个人简历数据（`workspace/active-resume.json`、`workspace/*.rts.json`）
+* 真实私密素材与提取文本（`workspace/materials/*`、`workspace/materials/.extracted/`）
+* 本地历史快照与日志（`workspace/history/`、`*.log`）
 
-MIT
+---
+
+## 开源协议
+
+本项目采用 [MIT License](LICENSE) 开源协议。
