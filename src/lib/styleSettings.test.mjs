@@ -31,7 +31,7 @@ assert.equal(normalizeStyleSettings({ lineHeight: 99 }).lineHeight, 2.4);
 
 // Valid values round-trip untouched.
 const custom = normalizeStyleSettings({
-  templateId: "editorial",
+  templateId: "classic",
   fontId: "sans",
   colorId: "gray",
   lineHeight: 1.5,
@@ -46,29 +46,29 @@ assert.equal(custom.ruleStyle, "bold");
 assert.equal(custom.fontSize.heading, 24);
 
 // Template switch: values still at the old preset move to the new one...
-const editorial = styleSettingsFromPreset("editorial");
-const untouched = applyTemplatePreset(styleSettingsFromPreset("professional"), "editorial");
-assert.equal(untouched.templateId, "editorial");
-assert.equal(untouched.fontSize.heading, editorial.fontSize.heading);
-assert.equal(untouched.lineHeight, editorial.lineHeight);
+const classic = styleSettingsFromPreset("classic");
+const untouched = applyTemplatePreset(styleSettingsFromPreset("professional"), "classic");
+assert.equal(untouched.templateId, "classic");
+assert.equal(untouched.fontSize.heading, classic.fontSize.heading);
+assert.equal(untouched.lineHeight, classic.lineHeight);
 
 // ...but a value the user deliberately changed survives the switch.
 const overridden = applyTemplatePreset(
   { ...styleSettingsFromPreset("professional"), pagePadding: 48, lineHeight: 1.9 },
-  "editorial"
+  "classic"
 );
-assert.equal(overridden.templateId, "editorial");
+assert.equal(overridden.templateId, "classic");
 assert.equal(overridden.pagePadding, 48, "user page padding must survive a template switch");
 assert.equal(overridden.lineHeight, 1.9, "user line height must survive a template switch");
-assert.equal(overridden.fontSize.body, editorial.fontSize.body, "untouched sizes still follow the preset");
+assert.equal(overridden.fontSize.body, classic.fontSize.body, "untouched sizes still follow the preset");
 
 // Per-size granularity: one overridden size does not pin the others.
 const oneSize = applyTemplatePreset(
   { ...styleSettingsFromPreset("professional"), fontSize: { ...professional.fontSize, body: 13 } },
-  "editorial"
+  "classic"
 );
 assert.equal(oneSize.fontSize.body, 13);
-assert.equal(oneSize.fontSize.heading, editorial.fontSize.heading);
+assert.equal(oneSize.fontSize.heading, classic.fontSize.heading);
 
 // Equality drives the autosave guard, so it must ignore object identity.
 assert.ok(styleSettingsEqual(custom, { ...custom, fontSize: { ...custom.fontSize } }));

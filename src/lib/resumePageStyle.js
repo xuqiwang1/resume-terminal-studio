@@ -63,9 +63,6 @@ export function buildResumePageStyle({
     "--r-skill-gap": spacePx(3),
     "--r-skill-heading": `${Math.round(fontSize.body * 1.25 * 10) / 10}px`,
     "--r-skill-inline-gap": spacePx(8),
-    "--r-editorial-body-gap": spacePx(8),
-    "--r-editorial-line-gap": spacePx(4),
-    "--r-editorial-inline-gap": spacePx(10),
     ...buildLinkStyleVars(layoutConfig?.linkStyle),
   };
 }

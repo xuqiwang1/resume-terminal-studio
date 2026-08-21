@@ -19,9 +19,12 @@ const css = fs.readFileSync(path.join(here, "..", "index.css"), "utf8");
 
 check("template picker uses short template names", source.includes("t.shortName || t.name"));
 check("template registry defines professional short name", registry.includes('shortName: "求职极简"'));
-check("template registry defines editorial short name", registry.includes('shortName: "苹果极简"'));
 check("template registry defines classic short name", registry.includes('shortName: "经典单栏"'));
-check("font picker includes the Chinese-English combination", source.includes('id: "mixed"') && source.includes("Georgia, 'Times New Roman', 'PingFang SC'"));
+check("template registry defines modern short name", registry.includes('shortName: "现代风尚"'));
+check("template registry defines executive short name", registry.includes('shortName: "商务精英"'));
+check("font picker removes the mixed option", !source.includes('id: "mixed"'));
+check("color picker keeps two color schemes", source.includes('id: "black"') && source.includes('id: "charcoal"') && !source.includes('id: "slate"'));
+check("left panel exposes section reordering", source.includes("SectionOrderInspector") && source.includes("模块排序"));
 check("font picker removes the sans-serif option", !source.includes('label: "黑体"'));
 check("font picker removes the monospace option", !source.includes('label: "等宽"'));
 check("left panel no longer renders current selection summary", !source.includes("CurrentSelectionSummary"));

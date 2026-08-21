@@ -266,6 +266,32 @@ export function useResumeStudio() {
     });
   }, []);
 
+  const updateFieldText = useCallback((fid, newText) => {
+    if (!fid) return;
+    setResume((prev) => {
+      const next = { ...prev };
+      const { sectionId, index, field } = parseFieldId(fid);
+      if (!sectionId || !field) return prev;
+      if (sectionId === "summary") {
+        next.summary = newText;
+        return next;
+      }
+      if (sectionId === "header") {
+        next[field] = newText;
+        return next;
+      }
+      if (Array.isArray(prev[sectionId]) && Number.isInteger(index)) {
+        const arr = [...prev[sectionId]];
+        if (arr[index]) {
+          arr[index] = { ...arr[index], [field]: newText };
+          next[sectionId] = arr;
+          return next;
+        }
+      }
+      return prev;
+    });
+  }, []);
+
   const refreshFiles = async () => {
     const data = await listResumeFiles();
     setRecentFiles(data.files || []);
@@ -648,6 +674,7 @@ export function useResumeStudio() {
     layoutConfig, setLayoutConfig,
     applyInlineStyle,
     applyFieldStyle,
+    updateFieldText,
     fieldStyles,
   };
 }

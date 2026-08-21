@@ -43,6 +43,7 @@ export default function App() {
     layoutConfig, setLayoutConfig,
     applyInlineStyle,
     applyFieldStyle,
+    updateFieldText,
     fieldStyles,
   } = useResumeStudio();
 
@@ -130,6 +131,8 @@ export default function App() {
           textSelection={textSelection}
           selectedField={selectedField}
           activeSectionId={activeSectionId}
+          resume={resume}
+          onUpdateFieldText={updateFieldText}
           onApplyInlineStyle={applyInlineStyle}
           onApplyFieldStyle={applyFieldStyle}
         />

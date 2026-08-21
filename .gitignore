@@ -52,5 +52,11 @@ workspace/materials/.extracted/
 # Logs
 *.log
 
+# Local outputs and private materials
+outputs/
+*.local.md
+YY实习项目复盘.md
+
 # Local isolated worktrees
 .worktrees/
+

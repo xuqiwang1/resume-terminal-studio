@@ -20,3 +20,21 @@ export function fieldClass(selectedField, sectionId, index, field) {
   if (isSelected(selectedField, sectionId, index, field)) classes.push("field-selected");
   return classes.join(" ");
 }
+
+export const ALL_SECTIONS = ["summary", "skills", "experience", "projects", "education"];
+
+export const SECTION_NAMES = {
+  summary: "个人总结",
+  skills: "专业技能",
+  experience: "工作经历",
+  projects: "项目经历",
+  education: "教育背景"
+};
+
+export function resolveSectionOrder(layoutConfig, defaultOrder = ALL_SECTIONS) {
+  const configured = Array.isArray(layoutConfig?.sectionOrder) ? layoutConfig.sectionOrder : defaultOrder;
+  const filtered = configured.filter((s) => ALL_SECTIONS.includes(s));
+  const missing = ALL_SECTIONS.filter((s) => !filtered.includes(s));
+  return [...filtered, ...missing];
+}
+

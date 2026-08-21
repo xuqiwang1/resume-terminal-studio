@@ -25,6 +25,5 @@ This repository builds **Resume Studio**, a local-first desktop resume workbench
 
 - Run `npm test` before claiming source changes are complete.
 - Run `npm run build` after React, CSS, template, or export-flow changes.
-- Run `npm run verify:visual` after changing the Editorial template, A4 geometry, or auto-fit. It needs `npm run build` first and a real display, so it is not part of `npm test`.
 - Run `npm run install:desktop` only when the user needs the installed macOS app refreshed.
 - After installing the desktop app, open `/Applications/Resume Studio.app` so the user sees the new build.

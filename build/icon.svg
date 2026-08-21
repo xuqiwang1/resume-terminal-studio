@@ -1,48 +1,57 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- 极简白 app mark: a sheet of paper on a white ground, a single ink rule for
-       the name, faint rules for body copy, and one proof-red mark — the same
-       language the app uses for a pending change. No gradient, no 3D. -->
+  <!-- Minimalist White macOS App Icon for Resume Studio -->
   <defs>
     <clipPath id="squircle">
       <path d="M512 40C778 40 984 246 984 512s-206 472-472 472S40 778 40 512 246 40 512 40Z"/>
     </clipPath>
+    <filter id="subtle-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
   </defs>
 
-  <!-- Ground: near-white squircle with a hairline edge -->
-  <rect x="40" y="40" width="944" height="944" rx="232" fill="#FAFAFA"/>
-  <rect x="40.5" y="40.5" width="943" height="943" rx="231.5" fill="none" stroke="#E4E5E7" stroke-width="9"/>
+  <!-- Ground: Pure minimal white squircle with precise hairline edge -->
+  <rect x="40" y="40" width="944" height="944" rx="232" fill="#F8F9FA"/>
+  <rect x="40.5" y="40.5" width="943" height="943" rx="231.5" fill="none" stroke="#E2E4E8" stroke-width="8"/>
 
-  <!-- The sheet -->
+  <!-- The A4 Sheet: crisp floating paper with subtle shadow -->
+  <g filter="url(#subtle-shadow)">
+    <rect x="256" y="176" width="512" height="672" rx="12" fill="#FFFFFF"/>
+    <rect x="256.5" y="176.5" width="511" height="671" rx="11.5" fill="none" stroke="#E2E4E8" stroke-width="5"/>
+  </g>
+
+  <!-- Resume Elements: razor-sharp ink typography lines -->
+  <!-- Applicant Name (Bold Ink Rule) -->
+  <rect x="328" y="272" width="220" height="24" rx="3" fill="#111113"/>
+  <!-- Subtitle/Role -->
+  <rect x="328" y="312" width="160" height="12" rx="2" fill="#71757E"/>
+  
+  <!-- Signature Section Rule (Full Width Divider) -->
+  <rect x="328" y="352" width="368" height="6" rx="3" fill="#111113"/>
+
+  <!-- Section 1: Experience / Body copy lines -->
+  <g fill="#A0A4AB">
+    <rect x="328" y="392" width="368" height="12" rx="4"/>
+    <rect x="328" y="424" width="312" height="12" rx="4"/>
+    <rect x="328" y="456" width="344" height="12" rx="4"/>
+  </g>
+
+  <!-- Section 2: Education Header Rule -->
+  <rect x="328" y="520" width="180" height="16" rx="3" fill="#111113"/>
+  <rect x="328" y="552" width="368" height="4" rx="2" fill="#E2E4E8"/>
+
+  <!-- Section 2 Body copy -->
+  <g fill="#A0A4AB">
+    <rect x="328" y="584" width="328" height="12" rx="4"/>
+    <rect x="328" y="616" width="368" height="12" rx="4"/>
+  </g>
+
+  <!-- Section 3: Skills with Proof Red Patch Accent -->
+  <rect x="328" y="680" width="140" height="16" rx="3" fill="#111113"/>
+  <rect x="328" y="712" width="368" height="4" rx="2" fill="#E2E4E8"/>
+  
   <g>
-    <rect x="272" y="196" width="480" height="632" rx="6" fill="#FFFFFF"/>
-    <rect x="272.5" y="196.5" width="479" height="631" rx="5.5" fill="none" stroke="#E4E5E7" stroke-width="7"/>
+    <rect x="328" y="744" width="220" height="12" rx="4" fill="#A0A4AB"/>
+    <!-- Proof-red patch strike line -->
+    <rect x="324" y="749" width="228" height="3" rx="1.5" fill="#E53935"/>
   </g>
-
-  <!-- Name: one confident ink rule -->
-  <rect x="340" y="290" width="248" height="22" rx="2" fill="#111112"/>
-  <!-- Section rule under it, the app's own signature device -->
-  <rect x="340" y="344" width="344" height="5" rx="2" fill="#111112"/>
-
-  <!-- Body copy: quiet, evenly set -->
-  <g fill="#B9BBBF">
-    <rect x="340" y="398" width="344" height="11" rx="5"/>
-    <rect x="340" y="436" width="292" height="11" rx="5"/>
-    <rect x="340" y="474" width="326" height="11" rx="5"/>
-  </g>
-
-  <!-- Second section -->
-  <rect x="340" y="546" width="212" height="14" rx="2" fill="#111112"/>
-  <rect x="340" y="588" width="344" height="4" rx="2" fill="#E4E5E7"/>
-
-  <g fill="#B9BBBF">
-    <rect x="340" y="620" width="308" height="11" rx="5"/>
-    <rect x="340" y="658" width="344" height="11" rx="5"/>
-  </g>
-
-  <!-- The one proof mark: a struck line and its red rule, mid-review -->
-  <g>
-    <rect x="340" y="696" width="196" height="11" rx="5" fill="#B9BBBF"/>
-    <rect x="336" y="697" width="204" height="4" rx="2" fill="#C4302B"/>
-  </g>
-  <rect x="340" y="734" width="264" height="11" rx="5" fill="#111112" opacity="0.72"/>
 </svg>

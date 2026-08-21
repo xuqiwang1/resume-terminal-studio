@@ -38,9 +38,8 @@ check("overflow badge names the offending sections", previewSource.includes("for
 check("export preflight names the offending sections", appSource.includes("formatSectionOverflow(overflowReport.sections"));
 check("debug hook reports section overflow", appSource.includes("overflowSections: overflowReport.sections"));
 check("every section carries a stable id for measurement", (() => {
-  const editorial = fs.readFileSync(new URL("./templates/editorial/index.jsx", import.meta.url), "utf8");
   const professional = fs.readFileSync(new URL("./templates/professional/index.jsx", import.meta.url), "utf8");
-  return editorial.includes('data-section="header"') && professional.includes('data-section="header"');
+  return professional.includes('data-section="header"');
 })());
 
 if (failures > 0) {

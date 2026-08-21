@@ -34,8 +34,8 @@ export function styleSettingsFromPreset(templateId = DEFAULT_TEMPLATE_ID, base =
   const preset = stylePresetFor(templateId) || stylePresetFor(DEFAULT_TEMPLATE_ID);
   return {
     templateId,
-    fontId: base.fontId || "serif",
-    colorId: base.colorId || "black",
+    fontId: base.fontId || preset.fontId || "serif",
+    colorId: base.colorId || preset.colorId || "black",
     lineHeight: preset.lineHeight,
     sectionGap: preset.sectionGap,
     pagePadding: preset.pagePadding,
@@ -86,6 +86,8 @@ export function applyTemplatePreset(current, nextTemplateId) {
   return {
     ...settings,
     templateId: nextTemplateId,
+    fontId: carry("fontId"),
+    colorId: carry("colorId"),
     lineHeight: carry("lineHeight"),
     sectionGap: carry("sectionGap"),
     pagePadding: carry("pagePadding"),

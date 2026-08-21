@@ -1,12 +1,46 @@
+export function parseMarkdownSegments(text, baseStyle = {}) {
+  if (!text) return [];
+  const BOLD_RE = /\*\*([^*]+)\*\*/g;
+  const segments = [];
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(BOLD_RE)) {
+    const start = match.index ?? 0;
+    if (start > lastIndex) {
+      segments.push({ text: text.slice(lastIndex, start), style: { ...baseStyle } });
+    }
+    segments.push({ text: match[1], style: { ...baseStyle, bold: true } });
+    lastIndex = start + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push({ text: text.slice(lastIndex), style: { ...baseStyle } });
+  }
+
+  return segments.length ? segments : [{ text, style: { ...baseStyle } }];
+}
+
 /**
- * Normalize a text field: if it's a plain string, wrap into RichSegment[].
- * If already RichSegment[], return as-is.
+ * Normalize a text field: if it's a plain string, parse markdown bold into RichSegment[].
+ * If already RichSegment[], parse any nested markdown bold and return normalized segments.
  */
 export function toSegments(value) {
   if (!value) return [{ text: "", style: {} }];
-  if (typeof value === "string") return [{ text: value, style: {} }];
-  if (Array.isArray(value)) return value;
-  return [{ text: String(value), style: {} }];
+  if (typeof value === "string") return parseMarkdownSegments(value);
+  if (Array.isArray(value)) {
+    const flattened = [];
+    for (const seg of value) {
+      if (typeof seg === "string") {
+        flattened.push(...parseMarkdownSegments(seg));
+      } else if (seg && typeof seg.text === "string" && seg.text.includes("**")) {
+        flattened.push(...parseMarkdownSegments(seg.text, seg.style));
+      } else if (seg) {
+        flattened.push(seg);
+      }
+    }
+    return flattened.length ? flattened : [{ text: "", style: {} }];
+  }
+  return parseMarkdownSegments(String(value));
 }
 
 /** Convert RichSegment[] back to plain text (for backward compat) */

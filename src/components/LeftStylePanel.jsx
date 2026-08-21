@@ -1,21 +1,18 @@
 import { useRef, useState } from "react";
 import { TEMPLATE_REGISTRY } from "../templates/registry";
-import { SECTION_LABELS } from "../hooks/resumeStudioHelpers";
+import { SECTION_LABELS, textForField } from "../hooks/resumeStudioHelpers";
 import { LINK_STYLE_MODES, normalizeLinkStyle } from "../lib/linkStyle";
+import { SECTION_NAMES, resolveSectionOrder } from "../templates/shared";
 
 const FONT_OPTIONS = [
+  { id: "system", label: "系统", family: "Inter, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" },
   { id: "serif", label: "宋体", family: "'Noto Serif SC', 'Songti SC', 'SimSun', serif" },
-  { id: "mixed", label: "中英组合", family: "Georgia, 'Times New Roman', 'PingFang SC', 'Microsoft YaHei', serif" },
-  { id: "system", label: "系统", family: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" },
   { id: "kai", label: "楷体", family: "'Kaiti SC', 'STKaiti', 'KaiTi', serif" },
 ];
 
 const COLOR_SCHEMES = [
   { id: "black", label: "纯黑", heading: "#000000", body: "#111111", muted: "#555555" },
-  { id: "charcoal", label: "炭灰", heading: "#1a1a1a", body: "#2d2d2d", muted: "#666666" },
-  { id: "slate", label: "石板", heading: "#334155", body: "#475569", muted: "#94a3b8" },
-  { id: "warm", label: "暖灰", heading: "#292524", body: "#44403c", muted: "#a8a29e" },
-  { id: "soft", label: "柔灰", heading: "#374151", body: "#6b7280", muted: "#9ca3af" },
+  { id: "charcoal", label: "炭灰", heading: "#1f2937", body: "#374151", muted: "#6b7280" },
 ];
 
 const RULE_STYLES = [
@@ -209,9 +206,108 @@ function DocumentInspector({
             ))}
           </ChipGroup>
         </div>
+        <div className="lsp-subgroup">
+          <label className="lsp-label">标头风格</label>
+          <ChipGroup>
+            {[
+              { id: "line", label: "全宽细线" },
+              { id: "bar", label: "左侧色块" },
+              { id: "pill", label: "胶囊底色" },
+              { id: "minimal", label: "纯粹文本" }
+            ].map(({ id, label }) => (
+              <button
+                key={id}
+                className={`lsp-chip ${(layoutConfig?.sectionHeadStyle || "line") === id ? "active" : ""}`}
+                onClick={() => onLayoutConfigChange?.({
+                  ...layoutConfig,
+                  sectionHeadStyle: id
+                })}
+              >
+                {label}
+              </button>
+            ))}
+          </ChipGroup>
+        </div>
         <LinkStyleInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
       </Fold>
+
+      <SectionOrderInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
     </>
+  );
+}
+
+function SectionOrderInspector({ layoutConfig, onLayoutConfigChange }) {
+  const currentOrder = resolveSectionOrder(layoutConfig);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+
+  const move = (fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= currentOrder.length) return;
+    const nextOrder = [...currentOrder];
+    const [moved] = nextOrder.splice(fromIndex, 1);
+    nextOrder.splice(toIndex, 0, moved);
+    onLayoutConfigChange?.({
+      ...layoutConfig,
+      sectionOrder: nextOrder
+    });
+  };
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== targetIndex) {
+      move(draggedIndex, targetIndex);
+    }
+    setDraggedIndex(null);
+  };
+
+  return (
+    <Fold title="模块排序" defaultOpen={false}>
+      <div className="lsp-order-list">
+        {currentOrder.map((sectionId, index) => (
+          <div
+            key={sectionId}
+            className={`lsp-order-item${draggedIndex === index ? " dragging" : ""}`}
+            draggable
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
+          >
+            <span className="lsp-order-handle" title="按住拖拽排序">⠿</span>
+            <span className="lsp-order-label">{SECTION_NAMES[sectionId] || sectionId}</span>
+            <div className="lsp-order-actions">
+              <button
+                type="button"
+                className="lsp-order-btn"
+                disabled={index === 0}
+                onClick={() => move(index, index - 1)}
+                title="上移"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                className="lsp-order-btn"
+                disabled={index === currentOrder.length - 1}
+                onClick={() => move(index, index + 1)}
+                title="下移"
+              >
+                ↓
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="lsp-hint" style={{ marginTop: 6 }}>可拖拽或点击箭头调整模块上下顺序</p>
+    </Fold>
   );
 }
 
@@ -251,11 +347,38 @@ function LinkStyleInspector({ layoutConfig, onLayoutConfigChange }) {
 }
 
 function FieldInspector({
-  fontId, colorId, textSelection, selectedField, onApplyInlineStyle, onApplyFieldStyle
+  fontId, colorId, textSelection, selectedField, onApplyInlineStyle, onApplyFieldStyle,
+  resume, onUpdateFieldText
 }) {
   const scopeText = textSelection ? "选中文字" : "选中字段";
+  const rawText = (resume && selectedField) ? textForField(resume, selectedField) : "";
+  const currentText = typeof rawText === "string" ? rawText : (rawText != null ? String(rawText) : "");
+  const isMultiLine = currentText.length > 40 || currentText.includes("\n");
+
   return (
     <>
+      {selectedField && (
+        <div className="lsp-group">
+          <label className="lsp-label">编辑内容 <span className="lsp-hint">（实时修改，无需AI）</span></label>
+          {isMultiLine ? (
+            <textarea
+              className="lsp-text-editor"
+              value={currentText}
+              rows={4}
+              onChange={(e) => onUpdateFieldText?.(selectedField, e.target.value)}
+              placeholder="在此直接输入或修改文字..."
+            />
+          ) : (
+            <input
+              type="text"
+              className="lsp-input-editor"
+              value={currentText}
+              onChange={(e) => onUpdateFieldText?.(selectedField, e.target.value)}
+              placeholder="在此直接输入或修改文字..."
+            />
+          )}
+        </div>
+      )}
       <div className="lsp-group">
         <label className="lsp-label">字段字体 <span className="lsp-hint">（{scopeText}）</span></label>
         <FontChips
@@ -378,18 +501,99 @@ function EducationInspector({ layoutConfig, onLayoutConfigChange }) {
 function SkillsInspector({ layoutConfig, onLayoutConfigChange }) {
   return (
     <div className="lsp-group">
-      <label className="lsp-label">技能区块</label>
+      <label className="lsp-label">技能版式</label>
       <ChipGroup>
-        {["block", "inline"].map((v) => (
+        {[
+          { id: "block", label: "分行" },
+          { id: "inline", label: "并排" },
+          { id: "grid", label: "3列网格" }
+        ].map(({ id, label }) => (
           <button
-            key={v}
-            className={`lsp-chip${(layoutConfig?.skills?.layout || "block") === v ? " active" : ""}`}
+            key={id}
+            className={`lsp-chip${(layoutConfig?.skills?.layout || "block") === id ? " active" : ""}`}
             onClick={() => onLayoutConfigChange?.({
               ...layoutConfig,
-              skills: { ...(layoutConfig?.skills || {}), layout: v }
+              skills: { ...(layoutConfig?.skills || {}), layout: id }
             })}
           >
-            {v === "block" ? "分行" : "并排"}
+            {label}
+          </button>
+        ))}
+      </ChipGroup>
+    </div>
+  );
+}
+
+function HeaderInspector({ layoutConfig, onLayoutConfigChange }) {
+  return (
+    <div className="lsp-group">
+      <label className="lsp-label">页眉对齐</label>
+      <ChipGroup>
+        {[
+          { id: "center", label: "居中" },
+          { id: "left", label: "靠左" }
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            className={`lsp-chip${(layoutConfig?.headerStyle || "center") === id ? " active" : ""}`}
+            onClick={() => onLayoutConfigChange?.({
+              ...layoutConfig,
+              headerStyle: id
+            })}
+          >
+            {label}
+          </button>
+        ))}
+      </ChipGroup>
+    </div>
+  );
+}
+
+function SummaryInspector({ layoutConfig, onLayoutConfigChange }) {
+  return (
+    <div className="lsp-group">
+      <label className="lsp-label">总结外观</label>
+      <ChipGroup>
+        {[
+          { id: "card", label: "导读卡片" },
+          { id: "plain", label: "极简文本" }
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            className={`lsp-chip${(layoutConfig?.summaryStyle || "card") === id ? " active" : ""}`}
+            onClick={() => onLayoutConfigChange?.({
+              ...layoutConfig,
+              summaryStyle: id
+            })}
+          >
+            {label}
+          </button>
+        ))}
+      </ChipGroup>
+    </div>
+  );
+}
+
+function SectionHeadInspector({ layoutConfig, onLayoutConfigChange }) {
+  return (
+    <div className="lsp-group">
+      <label className="lsp-label">标头风格</label>
+      <ChipGroup>
+        {[
+          { id: "line", label: "全宽细线" },
+          { id: "bar", label: "左侧色块" },
+          { id: "pill", label: "胶囊底色" },
+          { id: "minimal", label: "纯粹文本" }
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            className={`lsp-chip ${(layoutConfig?.sectionHeadStyle || "line") === id ? "active" : ""}`}
+            onClick={() => onLayoutConfigChange?.({
+              ...layoutConfig,
+              sectionHeadStyle: id
+            })}
+          >
+            {label}
           </button>
         ))}
       </ChipGroup>
@@ -398,21 +602,34 @@ function SkillsInspector({ layoutConfig, onLayoutConfigChange }) {
 }
 
 function SectionInspector({ activeSectionId, layoutConfig, onLayoutConfigChange }) {
-  if (activeSectionId === "education") {
-    return <EducationInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />;
-  }
-  if (activeSectionId === "skills") {
-    return <SkillsInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />;
-  }
-  if (activeSectionId === "experience" || activeSectionId === "projects") {
-    return (
-      <div className="lsp-group">
-        <label className="lsp-label">{SECTION_LABELS[activeSectionId]}</label>
-        <div className="inspector-note">名称 / 角色 / 日期三列</div>
-      </div>
-    );
-  }
-  return null;
+  if (!activeSectionId) return null;
+  const isBodySection = activeSectionId !== "header";
+
+  return (
+    <>
+      {activeSectionId === "header" && (
+        <HeaderInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
+      )}
+      {activeSectionId === "summary" && (
+        <SummaryInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
+      )}
+      {activeSectionId === "education" && (
+        <EducationInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
+      )}
+      {activeSectionId === "skills" && (
+        <SkillsInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
+      )}
+      {(activeSectionId === "experience" || activeSectionId === "projects") && (
+        <div className="lsp-group">
+          <label className="lsp-label">{SECTION_LABELS[activeSectionId]}</label>
+          <div className="inspector-note">名称 / 角色 / 日期三列</div>
+        </div>
+      )}
+      {isBodySection && (
+        <SectionHeadInspector layoutConfig={layoutConfig} onLayoutConfigChange={onLayoutConfigChange} />
+      )}
+    </>
+  );
 }
 
 export default function LeftStylePanel({
@@ -428,6 +645,7 @@ export default function LeftStylePanel({
   layoutConfig, onLayoutConfigChange,
   textSelection, selectedField, activeSectionId,
   onApplyInlineStyle, onApplyFieldStyle,
+  resume, onUpdateFieldText
 }) {
   const fileRef = useRef(null);
   const hasFieldSelection = Boolean(selectedField);
@@ -452,6 +670,8 @@ export default function LeftStylePanel({
           selectedField={selectedField}
           onApplyInlineStyle={onApplyInlineStyle}
           onApplyFieldStyle={onApplyFieldStyle}
+          resume={resume}
+          onUpdateFieldText={onUpdateFieldText}
         />
       ) : (
         <DocumentInspector
