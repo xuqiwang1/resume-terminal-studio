@@ -206,16 +206,43 @@ async function cmdEdit(args) {
   let index = 0;
   let field = undefined;
   let bulletIndex = undefined;
+  let replace = false;
   const contentParts = [];
+
+  // `parseInt(undefined, 10)` is NaN, which JSON.stringify emits as null, so a
+  // typo'd or value-less flag used to reach the server as `index: null` and be
+  // silently read as index 0. Flags are validated here instead.
+  const readIntFlag = (flag, raw) => {
+    if (raw === undefined || raw.startsWith("-")) {
+      process.stderr.write(`Error: ${flag} 需要一个数字参数\n`);
+      process.exit(1);
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 0) {
+      process.stderr.write(`Error: ${flag} 需要非负整数，收到 "${raw}"\n`);
+      process.exit(1);
+    }
+    return value;
+  };
 
   while (args.length) {
     const arg = args.shift();
     if (arg === "--index" || arg === "-i") {
-      index = parseInt(args.shift(), 10);
+      index = readIntFlag(arg, args.shift());
     } else if (arg === "--field" || arg === "-f") {
-      field = args.shift();
+      const raw = args.shift();
+      if (raw === undefined || raw.startsWith("-")) {
+        process.stderr.write(`Error: ${arg} 需要一个字段名\n`);
+        process.exit(1);
+      }
+      field = raw;
     } else if (arg === "--bullet" || arg === "-b") {
-      bulletIndex = parseInt(args.shift(), 10);
+      bulletIndex = readIntFlag(arg, args.shift());
+    } else if (arg === "--replace") {
+      replace = true;
+    } else if (arg.startsWith("--")) {
+      process.stderr.write(`Error: 未知参数 ${arg}\n`);
+      process.exit(1);
     } else {
       contentParts.push(arg);
     }
@@ -230,6 +257,7 @@ async function cmdEdit(args) {
   const patch = { sectionId: section, index, after: content };
   if (field) patch.field = field;
   if (bulletIndex !== undefined) patch.bulletIndex = bulletIndex;
+  if (replace) patch.replace = true;
 
   const { status, lines } = await requestStream("POST", "/api/patch/propose", {
     patch
@@ -243,12 +271,30 @@ async function cmdEdit(args) {
     process.stdout.write(`✅ Patch 已提交，等待 APP 确认\n`);
     process.stdout.write(`   Section: ${section}\n`);
     process.stdout.write(`   Pending ID: ${pendingLine.payload?.id || "unknown"}\n`);
-  } else if (doneLine) {
+    return;
+  }
+  if (doneLine) {
     process.stdout.write(`✅ 完成\n`);
-  } else {
-    process.stderr.write(`⚠️  未收到预期响应 (status ${status})\n`);
+    return;
+  }
+
+  // The server explains exactly why it refused — an occupied pending slot, a
+  // missing target, an invalid field. Printing only the status code threw that
+  // away and left the agent guessing.
+  const serverError = lines.find((l) => l && typeof l === "object" && l.error);
+  if (serverError) {
+    process.stderr.write(`❌ ${serverError.error}\n`);
+    if (status === 409 && serverError.pendingId) {
+      process.stderr.write(
+        `   已有待确认改动 (${serverError.pendingId})。请用户先在 APP 中接受或拒绝，` +
+          `或加 --replace 覆盖它。\n`
+      );
+    }
     process.exit(1);
   }
+  const raw = lines.find((l) => typeof l === "string" && l.trim());
+  process.stderr.write(`⚠️  未收到预期响应 (status ${status})${raw ? `: ${raw}` : ""}\n`);
+  process.exit(1);
 }
 
 async function cmdIngest() {
@@ -278,8 +324,9 @@ async function main() {
 Commands:
   show                                   打印当前简历 JSON
   context                                打印 APP 当前状态（选中 section 等）
-  edit <section> [--index N] [--field F] <content>
+  edit <section> [--index N] [--field F] [--bullet N] [--replace] <content>
                                          提交修改建议，APP 弹出确认
+                                         --replace 覆盖已存在的待确认改动
   pending                                查看当前待确认 patch
   health                                 检查 bridge 连接状态
   ingest                                 扫描 materials/ 提取文档

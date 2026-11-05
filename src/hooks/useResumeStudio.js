@@ -25,6 +25,8 @@ import {
   openResumeFile,
   openResumeArchive,
   saveResumeToFile,
+  saveResumeContent,
+  flushResumeContent,
   saveStyleSettings,
   subscribeActivityUpdates,
   subscribeResumeUpdates,
@@ -45,6 +47,9 @@ import {
 } from "../lib/styleSettings";
 
 const STYLE_AUTOSAVE_DELAY_MS = 400;
+// Longer than the style delay: typing produces far more events than a slider, and
+// a keystroke does not need to reach disk as eagerly as a released slider.
+const CONTENT_AUTOSAVE_DELAY_MS = 800;
 
 const DEFAULT_LAYOUT_CONFIG = {
   education: { schoolAlign: "center", majorAlign: "right" },
@@ -108,23 +113,31 @@ export function useResumeStudio() {
   const [fieldStyles, setFieldStyles] = useState(initialResume.fieldStyles || {});
   const [layoutConfig, setLayoutConfigState] = useState(initialResume.layoutConfig || DEFAULT_LAYOUT_CONFIG);
 
+  // True between a local edit and its autosave landing on disk. A resume
+  // broadcast arriving in that window used to replace the user's in-progress text
+  // with the older copy from disk, so those snapshots are deferred while it is set.
+  const contentDirtyRef = useRef(false);
+
   // Keep avatar in the persisted resume object so it survives save/load and is
   // consistent across templates that read resume.avatar. Avatar is uploaded in
   // the workbench (not via agent propose_edit).
   const setAvatar = useCallback((value) => {
     const next = value ?? null;
+    contentDirtyRef.current = true;
     setAvatarState(next);
     setResume((prev) => ({ ...prev, avatar: next }));
   }, []);
 
   const setAvatarPos = useCallback((value) => {
     const next = value || { x: 0, y: 0 };
+    contentDirtyRef.current = true;
     setAvatarPosState(next);
     setResume((prev) => ({ ...prev, avatarPos: next }));
   }, []);
 
   const setLayoutConfig = useCallback((value) => {
     const next = value || DEFAULT_LAYOUT_CONFIG;
+    contentDirtyRef.current = true;
     setLayoutConfigState(next);
     setResume((prev) => ({ ...prev, layoutConfig: next }));
   }, []);
@@ -177,7 +190,11 @@ export function useResumeStudio() {
   }, []);
 
   const applyResumeSnapshot = useCallback((nextResume, options = {}) => {
-    const { updatePrevious = false } = options;
+    const { updatePrevious = false, force = false } = options;
+    // Explicit actions (open, restore, new, accept-patch) pass force: they are the
+    // user asking for this exact document, so local edits are meant to be replaced.
+    if (!force && contentDirtyRef.current) return;
+    if (force) contentDirtyRef.current = false;
     const mergedResume = mergeResumeSnapshot(resumeRef.current, nextResume);
     if (updatePrevious) {
       prevResumeRef.current = mergedResume;
@@ -222,6 +239,7 @@ export function useResumeStudio() {
   }, []);
 
   const applyInlineStyle = useCallback((fieldId, startOffset, endOffset, styleKey, styleValue) => {
+    contentDirtyRef.current = true;
     setResume((prev) => {
       const next = { ...prev };
       const resolveField = (fid) => {
@@ -253,6 +271,7 @@ export function useResumeStudio() {
 
   const applyFieldStyle = useCallback((fieldId, styleKey, styleValue) => {
     if (!fieldId) return;
+    contentDirtyRef.current = true;
     setResume((prev) => {
       const nextFieldStyles = {
         ...(prev.fieldStyles || {}),
@@ -268,6 +287,7 @@ export function useResumeStudio() {
 
   const updateFieldText = useCallback((fid, newText) => {
     if (!fid) return;
+    contentDirtyRef.current = true;
     setResume((prev) => {
       const next = { ...prev };
       const { sectionId, index, field } = parseFieldId(fid);
@@ -334,7 +354,7 @@ export function useResumeStudio() {
     fetchActiveResume()
       .then((data) => {
         const r = data.resume || initialResume;
-        applyResumeSnapshot(r, { updatePrevious: true });
+        applyResumeSnapshot(r, { updatePrevious: true, force: true });
         const activeResumePath = data.activeResumePath || "";
         fetchContext()
           .then((contextData) => {
@@ -498,6 +518,50 @@ export function useResumeStudio() {
     return () => clearTimeout(timer);
   }, [pushActivityItem, styleSettings]);
 
+  // Debounced content autosave. Styling had an autosave while the resume body did
+  // not, so text, inline styling, per-field styling, and avatar placement lived
+  // only in React state: closing the window lost them, and the next resume
+  // broadcast overwrote them. The dirty flag is what keeps this from echoing a
+  // server snapshot straight back as a write.
+  useEffect(() => {
+    if (!initialLoadDone.current) return undefined;
+    if (!contentDirtyRef.current) return undefined;
+    const timer = setTimeout(() => {
+      const snapshot = resume;
+      saveResumeContent(snapshot)
+        .then(() => {
+          // Only clear the flag if nothing was typed while the request was in
+          // flight; otherwise the newer edit still needs saving.
+          if (resumeRef.current === snapshot) contentDirtyRef.current = false;
+        })
+        .catch((e) => {
+          pushActivityItem({
+            label: "Autosave",
+            state: "Error",
+            text: `内容自动保存失败：${e.message}（改动仍在编辑器中，请手动保存）`
+          });
+        });
+    }, CONTENT_AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [pushActivityItem, resume]);
+
+  // The debounce leaves a window in which a close would drop the last keystrokes,
+  // so flush on the way out. `keepalive` is what lets the request survive the
+  // document being torn down.
+  useEffect(() => {
+    const flush = () => {
+      if (!initialLoadDone.current || !contentDirtyRef.current) return;
+      contentDirtyRef.current = false;
+      flushResumeContent(resumeRef.current);
+    };
+    window.addEventListener("beforeunload", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("beforeunload", flush);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, []);
+
   // `force` is the user answering the conflict warning: they saw that the target text
   // changed after the patch was proposed and chose to overwrite it anyway.
   const confirmPending = useCallback(async ({ force = false } = {}) => {
@@ -506,7 +570,9 @@ export function useResumeStudio() {
     try {
       const result = await confirmPendingPatch(pendingPatch.id, resume, { allowConflict: force });
       setPendingConflicts([]);
-      if (result?.resume) applyResumeSnapshot(result.resume, { updatePrevious: true });
+      // force: the server just applied the patch and returned the authoritative
+      // resume, so this snapshot must win over any local dirty state.
+      if (result?.resume) applyResumeSnapshot(result.resume, { updatePrevious: true, force: true });
       if (pendingPatch.kind !== "batch") {
         const fid = patchFieldId(pendingPatch.sectionId, pendingPatch.index);
         if (fid) {
@@ -559,6 +625,9 @@ export function useResumeStudio() {
         resume,
         fileName: currentFileName || `${resume.name || "resume"}-studio`
       });
+      // An explicit save persists the same bytes the autosave would have written,
+      // so the pending autosave has nothing left to do.
+      if (resumeRef.current === resume) contentDirtyRef.current = false;
       setCurrentFileName(saved.fileName);
       await refreshFiles();
       pushActivityItem({
@@ -576,59 +645,80 @@ export function useResumeStudio() {
     }
   };
 
+  // These four used to run without error handling, so a failed request rejected
+  // into whatever called them: the panel reported nothing, and the workbench was
+  // left showing a document the server had not actually switched to.
   const openLatestResume = async () => {
     const latest = recentFiles[0];
     if (!latest) return;
-    const opened = await openResumeFile(latest.fileName);
-    applyResumeSnapshot(opened.document.resume);
-    setCurrentFileName(opened.fileName);
-    setPendingPatch(null);
-    pushActivityItem({
-      label: "File",
-      state: "Opened",
-      text: `已打开本地文件：${opened.fileName}`
-    });
+    try {
+      const opened = await openResumeFile(latest.fileName);
+      applyResumeSnapshot(opened.document.resume, { updatePrevious: true, force: true });
+      setCurrentFileName(opened.fileName);
+      setPendingPatch(null);
+      pushActivityItem({
+        label: "File",
+        state: "Opened",
+        text: `已打开本地文件：${opened.fileName}`
+      });
+    } catch (e) {
+      pushActivityItem({ label: "File", state: "Error", text: `打开文件失败：${e.message}` });
+      throw e;
+    }
   };
 
   const archiveCurrent = async () => {
-    const saved = await archiveCurrentResume("manual-snapshot");
-    await refreshHistory();
-    pushActivityItem({
-      label: "History",
-      state: "Archived",
-      text: `已保存历史版本：${saved.archive?.fileName || "snapshot"}`
-    });
+    try {
+      const saved = await archiveCurrentResume("manual-snapshot");
+      await refreshHistory();
+      pushActivityItem({
+        label: "History",
+        state: "Archived",
+        text: `已保存历史版本：${saved.archive?.fileName || "snapshot"}`
+      });
+    } catch (e) {
+      pushActivityItem({ label: "History", state: "Error", text: `保存历史版本失败：${e.message}` });
+      throw e;
+    }
   };
 
   const startNewResume = async () => {
-    const created = await createNewResume("new-template");
-    const nextResume = created.resume;
-    applyResumeSnapshot(nextResume, { updatePrevious: true });
-    setCurrentFileName("");
-    setPatchAnimation(null);
-    setActiveSectionId("education");
-    setPendingPatch(null);
-    await refreshHistory();
-    pushActivityItem({
-      label: "History",
-      state: "New Template",
-      text: `已归档当前简历，并打开新的空白模板。`
-    });
+    try {
+      const created = await createNewResume("new-template");
+      applyResumeSnapshot(created.resume, { updatePrevious: true, force: true });
+      setCurrentFileName("");
+      setPatchAnimation(null);
+      setActiveSectionId("education");
+      setPendingPatch(null);
+      await refreshHistory();
+      pushActivityItem({
+        label: "History",
+        state: "New Template",
+        text: `已归档当前简历，并打开新的空白模板。`
+      });
+    } catch (e) {
+      pushActivityItem({ label: "History", state: "Error", text: `新建简历失败：${e.message}` });
+      throw e;
+    }
   };
 
   const openArchive = async (fileName) => {
-    const opened = await openResumeArchive(fileName);
-    const nextResume = opened.resume;
-    applyResumeSnapshot(nextResume, { updatePrevious: true });
-    setCurrentFileName("");
-    setPatchAnimation(null);
-    setPendingPatch(null);
-    await refreshHistory();
-    pushActivityItem({
-      label: "History",
-      state: "Restored",
-      text: `已从历史版本恢复：${fileName}`
-    });
+    try {
+      const opened = await openResumeArchive(fileName);
+      applyResumeSnapshot(opened.resume, { updatePrevious: true, force: true });
+      setCurrentFileName("");
+      setPatchAnimation(null);
+      setPendingPatch(null);
+      await refreshHistory();
+      pushActivityItem({
+        label: "History",
+        state: "Restored",
+        text: `已从历史版本恢复：${fileName}`
+      });
+    } catch (e) {
+      pushActivityItem({ label: "History", state: "Error", text: `恢复历史版本失败：${e.message}` });
+      throw e;
+    }
   };
 
   return {

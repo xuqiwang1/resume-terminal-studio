@@ -31,10 +31,17 @@ The resume is the user's asset. You MUST NOT modify it silently.
   - \`skills\`: array of { category, content }; use \`index\` + \`field\` (category/content).
 - MCP proposals stage a PENDING change. They do not take effect until the user
   clicks 「接受」 in the workbench. They may also reject them.
+- There is ONE pending slot and one review banner. Proposing while a patch is
+  already awaiting review is refused with \`PendingPatchExists\`. Ask the user to
+  accept or reject it; only pass \`replace: true\` to correct a proposal you just
+  made yourself, never to push past one the user has not seen.
 - Before proposing, call \`get_context\` and confirm \`workspaceDiagnostics.aligned\`
   is true. Pending patches are bound to the App's current \`documentId\` and
   \`revision\`; if the user switches templates, files, or history entries, old
   pending patches are cleared or rejected.
+- Accepting compares the text the patch recorded against the resume on disk. If
+  the user edited that field in the meantime the accept is refused as a conflict
+  rather than overwriting their edit, and they are asked to confirm.
 - Do NOT run \`resume-agent confirm\` or \`resume-agent reject\`; those commands are disabled
   so agents cannot bypass user approval through Bash.
 - Do NOT quit, kill, reopen, rebuild, unpack, or patch the Resume Studio app unless
@@ -82,6 +89,11 @@ export function getWorkspaceReadmeContent() {
 3. 这些 MCP 提交只会生成「待确认」改动，**用户在工作台点「接受」后才会真正写入**，用户也可以拒绝。
    提交前先调用 \`get_context\` 并确认 \`workspaceDiagnostics.aligned\` 为 true。pending patch 会绑定当前
    \`documentId\` 和 \`revision\`；用户切换模板、文件或历史版本后，旧 pending 会被清空或拒绝。
+   待确认槽位只有一个，工作台也只显示一条审阅浮条：已有待确认改动时再次提交会被拒绝（\`PendingPatchExists\`）。
+   请让用户先接受或拒绝；只有在修正你自己刚提交的建议时才可以传 \`replace: true\`，
+   **绝不要**用它越过用户尚未看到的改动。
+   接受时会把 patch 记录的原文与磁盘上的简历对比：若该字段已被用户改动，接受会被判为冲突并要求用户确认，
+   而不是直接覆盖用户的修改。
 4. 禁止运行 \`resume-agent confirm\` / \`resume-agent reject\`；这些命令已禁用，避免 agent 通过 Bash 绕过用户审核。
 5. 禁止关闭、杀掉、重启、重打包、解包或修改 Resume Studio APP，除非用户明确要求做 APP 开发。简历内容修改不需要碰应用包。
 6. 头像由用户在工作台上传，**不要**尝试设置头像。

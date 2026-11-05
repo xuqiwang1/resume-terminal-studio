@@ -7,6 +7,8 @@
 1. **严禁直接修改 `workspace/active-resume.json`**（或已安装应用路径 `~/Documents/ResumeStudio/active-resume.json`）。直接修改文件会绕过用户的人工审核机制。
 2. 所有正文修改必须通过命令行工具（或 MCP 接口 `propose_edit` / `propose_batch_edit`）提交，生成待确认补丁（pending patch）。
 3. 待确认补丁只有在用户于桌面应用界面中点击「接受」后才会真正写入。**切勿**替用户执行确认或拒绝。
+   待确认槽位只有一个：已有补丁待审阅时再次提交会被拒绝（`PendingPatchExists` / HTTP 409）。
+   应当请用户先接受或拒绝；只有在修正自己刚提交的建议时才可传 `replace: true`（CLI: `--replace`）。
 4. 简历头像由用户在工作台界面自主上传与排版，无需也不要尝试通过接口设置。
 5. 除非用户明确要求进行应用底层开发，否则不要退出、终止、重启或重新打包桌面应用。
 
@@ -27,9 +29,12 @@ node bridge/bin/resume-cli.cjs health        # 检查连接状态与工作区对
 node bridge/bin/resume-cli.cjs context       # 读取当前文档状态与用户选中的字段
 node bridge/bin/resume-cli.cjs show          # 读取完整简历 JSON
 node bridge/bin/resume-cli.cjs pending       # 读取当前待确认的修改项
-node bridge/bin/resume-cli.cjs edit <section> [--index N] [--field F] [--bullet N] <content>
+node bridge/bin/resume-cli.cjs edit <section> [--index N] [--field F] [--bullet N] [--replace] <content>
 node bridge/bin/resume-cli.cjs ingest        # 扫描 materials/ 抽取结构化素材（本地执行，无需桥接服务）
 ```
+
+桥接服务始终启用令牌鉴权。命令行工具会从 `~/.resume-studio/runtime.json`（权限 0600）自动读取令牌，
+Vite 开发代理同样如此，一般无需手动设置 `RESUME_BRIDGE_TOKEN`。
 
 ## 推荐工作流
 

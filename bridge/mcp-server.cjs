@@ -34,13 +34,26 @@ function ensureMcpWorkspace() {
   }
 }
 
+// A throw at module scope used to kill the MCP server before it could speak
+// JSON-RPC, so the client saw an opaque "server exited" with no reason. Startup
+// failures are reported on stderr (stdout is the protocol channel) and the
+// process exits with a non-zero code.
 const {
   activeSession,
   core,
   sessionManager
 } = (() => {
-  ensureMcpWorkspace();
-  return initializeRuntime({ workspaceDir, resume: loadResume() });
+  try {
+    ensureMcpWorkspace();
+    return initializeRuntime({ workspaceDir, resume: loadResume() });
+  } catch (error) {
+    process.stderr.write(
+      `[resume-studio-mcp] failed to start: ${error.message}\n` +
+        `  workspaceDir: ${workspaceDir}\n` +
+        `  activeResumePath: ${activeResumePath}\n`
+    );
+    process.exit(1);
+  }
 })();
 const runtime = createNativeMcpRuntime({ sessionManager, core });
 
@@ -120,6 +133,7 @@ const { callTool, readResource } = createMcpHandlers({
   readActivityEvents,
   readActivityState,
   readContextState,
+  readPendingPatch,
   runtime,
   terminalAgentPath,
   workspaceDir,
@@ -138,12 +152,28 @@ function failure(id, code, message) {
   };
 }
 
+const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
+const FALLBACK_PROTOCOL_VERSION = "2024-11-05";
+
+function negotiateProtocolVersion(requested) {
+  // Hardcoding one version meant a client on a newer revision was answered with
+  // a version it had not asked for. Echo the client's version when we support it.
+  if (typeof requested === "string" && SUPPORTED_PROTOCOL_VERSIONS.includes(requested)) {
+    return requested;
+  }
+  return FALLBACK_PROTOCOL_VERSION;
+}
+
 function handleMessage(message) {
   const { id, method, params } = message;
 
+  if (typeof method !== "string") {
+    return failure(id ?? null, -32600, "Invalid request: missing method");
+  }
+
   if (method === "initialize") {
     return success(id, {
-      protocolVersion: "2024-11-05",
+      protocolVersion: negotiateProtocolVersion(params?.protocolVersion),
       capabilities: {
         tools: {},
         resources: {}
@@ -152,7 +182,10 @@ function handleMessage(message) {
     });
   }
 
-  if (method === "notifications/initialized") {
+  // A JSON-RPC notification has no id and must never be answered. Replying only
+  // to `notifications/initialized` meant every other notification got an error
+  // object back, which is a protocol violation.
+  if (method.startsWith("notifications/") || id === undefined || id === null) {
     return null;
   }
 
@@ -194,9 +227,21 @@ function writeMessage(payload) {
 
 let textBuffer = "";
 
+// A client that never sends a newline would otherwise grow this buffer until the
+// process runs out of memory. 32 MiB is far above any legitimate request.
+const MAX_BUFFER_BYTES = 32 * 1024 * 1024;
+
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => {
   textBuffer += chunk;
+
+  if (textBuffer.length > MAX_BUFFER_BYTES) {
+    textBuffer = "";
+    writeMessage(
+      failure(null, -32700, `Request exceeded ${MAX_BUFFER_BYTES} bytes without a newline; buffer discarded`)
+    );
+    return;
+  }
 
   while (true) {
     const newlineIndex = textBuffer.indexOf("\n");
@@ -206,14 +251,22 @@ process.stdin.on("data", (chunk) => {
     textBuffer = textBuffer.slice(newlineIndex + 1);
     if (!line) continue;
 
+    let message;
     try {
-      const message = JSON.parse(line);
+      message = JSON.parse(line);
+    } catch (error) {
+      writeMessage(failure(null, -32700, error.message));
+      continue;
+    }
+    // A throw inside handleMessage used to be reported as a parse error, hiding
+    // the real cause, and an unexpected one could tear down the stdin handler.
+    try {
       const response = handleMessage(message);
       if (response) {
         writeMessage(response);
       }
     } catch (error) {
-      writeMessage(failure(null, -32700, error.message));
+      writeMessage(failure(message?.id ?? null, -32603, error.message));
     }
   }
 });

@@ -68,4 +68,28 @@ const current = {
   assert.deepEqual(merged, { name: "Only Incoming", avatar: null });
 }
 
+// An incoming snapshot carrying an EMPTY styling object must not be read as "the
+// user cleared their style". Presence of the key used to be the only test, so
+// `styleSettings: {}` or `fieldStyles: null` wiped the workbench's styling.
+{
+  const incoming = { ...current, styleSettings: {}, fieldStyles: {}, layoutConfig: {} };
+  const merged = mergeResumeSnapshot(current, incoming);
+  assert.deepEqual(merged.fieldStyles, current.fieldStyles);
+  assert.deepEqual(merged.layoutConfig, current.layoutConfig);
+}
+
+{
+  const withStyle = { ...current, styleSettings: { fontId: "serif" } };
+  const incoming = { ...current, styleSettings: null };
+  const merged = mergeResumeSnapshot(withStyle, incoming);
+  assert.deepEqual(merged.styleSettings, { fontId: "serif" }, "null must not clear styling");
+}
+
+{
+  // Neither side has usable styling: the key is dropped so downstream
+  // normalizers see it as absent rather than falsy.
+  const merged = mergeResumeSnapshot({ name: "x" }, { name: "y", fieldStyles: null });
+  assert.equal("fieldStyles" in merged, false);
+}
+
 console.log("resumeSnapshotMerge tests passed");

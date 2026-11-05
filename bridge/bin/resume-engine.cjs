@@ -4,6 +4,7 @@ const crypto = require("node:crypto");
 const { createEventBus } = require("../core/eventBus.cjs");
 const { createPersistence } = require("../core/persistence.cjs");
 const { createResumeCore } = require("../core/resumeCore.cjs");
+const { writeFileAtomicSync, writeJsonAtomicSync, readJsonSync } = require("../core/atomicFile.cjs");
 const { resolveWorkspaceDir } = require("../workspacePath.cjs");
 
 const workspaceDir = resolveWorkspaceDir(process.env, path.resolve(__dirname, ".."));
@@ -19,36 +20,40 @@ function loadResume() {
 }
 
 function saveResume(resume) {
-  fs.writeFileSync(activeResumePath, JSON.stringify(resume, null, 2));
+  writeJsonAtomicSync(activeResumePath, resume);
 }
 
 function readActivityState() {
-  try {
-    const raw = fs.readFileSync(activityStatePath, "utf8");
-    return raw.trim() ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return readJsonSync(activityStatePath, { fallback: {} }).value;
 }
 
 function readActivityEvents(limit = 20) {
+  let raw;
   try {
-    const raw = fs.readFileSync(activityLogPath, "utf8");
-    return raw
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(-limit)
-      .map((line) => JSON.parse(line));
+    raw = fs.readFileSync(activityLogPath, "utf8");
   } catch {
     return [];
   }
+  // One malformed line used to discard the entire activity history, because the
+  // JSON.parse sat inside the same try as the file read. Bad lines are skipped.
+  const events = [];
+  const lines = raw.split("\n");
+  for (const line of lines.slice(-Math.max(limit * 4, limit))) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      events.push(JSON.parse(trimmed));
+    } catch {
+      // Skip a torn or hand-edited line rather than losing the whole log.
+    }
+  }
+  return events.slice(-limit);
 }
 
 function updateActivityState(patch) {
   const current = readActivityState();
   const next = { ...current, ...patch, updatedAt: new Date().toISOString() };
-  fs.writeFileSync(activityStatePath, JSON.stringify(next, null, 2));
+  writeJsonAtomicSync(activityStatePath, next);
   return next;
 }
 
@@ -104,27 +109,28 @@ function endCommandSession(sessionId, rawCommand, ok) {
 // confirms (commit) or rejects it. Until then active-resume.json is untouched.
 
 function readPendingPatch() {
-  try {
-    const raw = fs.readFileSync(pendingPatchPath, "utf8");
-    return raw.trim() ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  return readJsonSync(pendingPatchPath, { fallback: null }).value;
 }
 
 function writePendingPatch(pending) {
-  fs.writeFileSync(pendingPatchPath, JSON.stringify(pending, null, 2));
+  writeJsonAtomicSync(pendingPatchPath, pending);
 }
 
 function clearPendingPatch() {
-  try {
-    fs.writeFileSync(pendingPatchPath, "");
-  } catch {
-    // ignore
-  }
+  // Silently swallowing this meant a user who clicked "reject" could be told it
+  // worked while the patch stayed on disk and reappeared on the next read.
+  writeFileAtomicSync(pendingPatchPath, "");
 }
 
+// One core per process, not one per call. Building a fresh core (and a fresh
+// event bus) inside every propose/commit/reject meant no subscriber ever saw an
+// event and the document revision restarted at 0 each time, which in turn made
+// staleness checks meaningless.
+let engineCore = null;
+
 function createEngineCore() {
+  if (engineCore) return engineCore;
+
   const persistence = createPersistence({ workspaceDir });
   const bus = createEventBus();
   const core = createResumeCore({ bus, persistence });
@@ -139,7 +145,24 @@ function createEngineCore() {
       revision: 0
     });
   }
-  return { core, persistence };
+  engineCore = { bus, core, persistence };
+  return engineCore;
+}
+
+function resetEngineCoreForTests() {
+  engineCore = null;
+}
+
+// The engine and the HTTP server used to hold independent copies of the resume,
+// so a CLI propose and an app confirm could disagree about what was on disk.
+// Re-reading before a propose keeps the recorded `before` honest.
+function syncCoreFromDisk(core) {
+  try {
+    core.hydrateResume(loadResume());
+  } catch {
+    // No readable resume on disk yet; the core keeps whatever it loaded.
+  }
+  core.hydratePendingPatch(readPendingPatch());
 }
 
 // Step 1: an agent proposes a finished edit. The agent (Codex/Claude) has
@@ -147,15 +170,20 @@ function createEngineCore() {
 // engine adds no "intelligence" — it only validates the target, records the
 // before-value, and stores the proposal in the single pending slot.
 // It does NOT write active-resume.json.
-function proposeEdit({ sectionId, index = 0, field, content, bulletIndex }, sessionId = crypto.randomUUID()) {
+function proposeEdit(
+  { sectionId, index = 0, field, content, bulletIndex, replace = false },
+  sessionId = crypto.randomUUID()
+) {
   const { core } = createEngineCore();
+  syncCoreFromDisk(core);
   const pending = core.proposeSectionEdit({
     sessionId,
     sectionId,
     index,
     field,
     bulletIndex,
-    content
+    content,
+    replace
   });
   appendActivity({
     type: "proposed",
@@ -184,6 +212,7 @@ function proposeEdit({ sectionId, index = 0, field, content, bulletIndex }, sess
 // then clear the slot. This is the ONLY write path for AI-proposed edits.
 function commitPatch(id) {
   const { core, persistence } = createEngineCore();
+  syncCoreFromDisk(core);
   const pending = persistence.loadPendingPatch();
   if (!pending) {
     throw new Error("No pending patch to commit");
@@ -191,7 +220,7 @@ function commitPatch(id) {
   if (id && pending.id !== id) {
     throw new Error(`Pending patch id mismatch: ${id} != ${pending.id}`);
   }
-  core.confirmPendingPatch({ pendingId: id });
+  core.confirmPendingPatch({ pendingId: id || pending.id });
   const resume = core.getResume();
   if (pending.kind === "batch") {
     appendActivity({
@@ -224,6 +253,7 @@ function commitPatch(id) {
 // Step 2b: user rejects. Discard the pending patch, leave the resume untouched.
 function rejectPatch(id) {
   const { core, persistence } = createEngineCore();
+  syncCoreFromDisk(core);
   const pending = persistence.loadPendingPatch();
   if (!pending) {
     return { rejected: false };
@@ -231,7 +261,7 @@ function rejectPatch(id) {
   if (id && pending.id !== id) {
     throw new Error(`Pending patch id mismatch: ${id} != ${pending.id}`);
   }
-  core.rejectPendingPatch({ pendingId: id });
+  core.rejectPendingPatch({ pendingId: id || pending.id });
   appendActivity({
     type: "rejected",
     sessionId: pending.sessionId,
@@ -259,9 +289,11 @@ module.exports = {
   readActivityState,
   readPendingPatch,
   rejectPatch,
+  resetEngineCoreForTests,
   saveResume,
   startCommandSession,
   terminalAgentPath: path.join(workspaceDir, "resume-agent"),
   updateActivityState,
-  workspaceDir
+  workspaceDir,
+  writePendingPatch
 };

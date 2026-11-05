@@ -46,16 +46,19 @@ function classifyBatchRisk(changes) {
 
 function getFieldValue(resume, sectionId, index = 0, field) {
   if (sectionId === "name" || sectionId === "summary" || sectionId === "title" || sectionId === "contact") {
-    return resume?.[sectionId] || "";
+    return resume?.[sectionId] ?? "";
   }
   const targetField = field || DEFAULT_FIELD[sectionId] || "details";
-  return resume?.[sectionId]?.[index]?.[targetField] || "";
+  return resume?.[sectionId]?.[index]?.[targetField] ?? "";
 }
 
 function getPatchBefore(resume, { sectionId, index = 0, field, bulletIndex }) {
   const value = getFieldValue(resume, sectionId, index, field);
   const targetField = field || DEFAULT_FIELD[sectionId] || "details";
   if (targetField === "details" && typeof bulletIndex === "number" && bulletIndex >= 0) {
+    // A styled field holds rich-text segments rather than a string; there are no
+    // bullet lines to index into, so report the whole value instead of throwing.
+    if (typeof value !== "string") return value;
     return value.split("\n")[bulletIndex] || "";
   }
   return value;
@@ -154,7 +157,13 @@ function applySinglePatch(resume, patch) {
     };
   }
   const current = nextItems[targetIndex];
-  if (!current) return resume;
+  // Returning the resume unchanged here used to report success while applying
+  // nothing: the pending slot was cleared and the user was told their edit landed.
+  if (!current) {
+    throw new Error(
+      `${patch.sectionId}[${targetIndex}] no longer exists; the patch cannot be applied`
+    );
+  }
   if (targetField === "details" && typeof patch.bulletIndex === "number" && patch.bulletIndex >= 0) {
     const lines = String(current[targetField] || "").split("\n");
     if (patch.bulletIndex >= lines.length) {
@@ -169,25 +178,33 @@ function applySinglePatch(resume, patch) {
   return { ...resume, [patch.sectionId]: nextItems };
 }
 
+// Targets are validated when the patch is proposed, but a patch sits on disk
+// between propose and accept and the resume can shrink in the meantime. Spreading
+// a missing item would produce `{...undefined}` — a phantom entry holding only the
+// patched field — so the index is re-checked at apply time.
+function requireExistingItems(resume, change) {
+  const items = resume[change.sectionId];
+  if (!Array.isArray(items) || !items[change.index]) {
+    throw new Error(
+      `${change.sectionId}[${change.index}] no longer exists; the patch cannot be applied`
+    );
+  }
+  return [...items];
+}
+
 function applyNormalizedBatchChange(resume, change) {
   if ((change.operation === "replace_section" || change.operation === "replace_field") && SCALAR_SECTIONS.includes(change.sectionId)) {
     return { ...resume, [change.sectionId]: change.after };
   }
 
-  if (change.operation === "replace_section") {
-    const nextItems = [...(resume[change.sectionId] || [])];
-    nextItems[change.index] = { ...nextItems[change.index], [change.field]: change.after };
-    return { ...resume, [change.sectionId]: nextItems };
-  }
-
-  if (change.operation === "replace_field") {
-    const nextItems = [...(resume[change.sectionId] || [])];
+  if (change.operation === "replace_section" || change.operation === "replace_field") {
+    const nextItems = requireExistingItems(resume, change);
     nextItems[change.index] = { ...nextItems[change.index], [change.field]: change.after };
     return { ...resume, [change.sectionId]: nextItems };
   }
 
   if (change.operation === "replace_item") {
-    const nextItems = [...(resume[change.sectionId] || [])];
+    const nextItems = requireExistingItems(resume, change);
     nextItems[change.index] = change.after;
     return { ...resume, [change.sectionId]: nextItems };
   }
@@ -199,6 +216,10 @@ function applyNormalizedBatchChange(resume, change) {
   throw new Error(`Unsupported batch operation "${change.operation}"`);
 }
 
+// Fails closed. Requiring both revisions to be integers before comparing them
+// meant a patch missing its revision — written by an older build, or hand-edited —
+// was treated as never stale and could be applied to a document it was never
+// proposed against. A patch we cannot prove is current is stale.
 function isPendingStaleForActiveDocument(pendingPatch, activeDocument) {
   if (!pendingPatch || !activeDocument) return false;
   if (
@@ -208,11 +229,10 @@ function isPendingStaleForActiveDocument(pendingPatch, activeDocument) {
   ) {
     return true;
   }
-  return (
-    Number.isInteger(activeDocument.revision) &&
-    Number.isInteger(pendingPatch.revision) &&
-    activeDocument.revision !== pendingPatch.revision
-  );
+  if (!Number.isInteger(activeDocument.revision) || !Number.isInteger(pendingPatch.revision)) {
+    return true;
+  }
+  return activeDocument.revision !== pendingPatch.revision;
 }
 
 function isActiveDocumentBound(activeDocument) {
@@ -386,6 +406,30 @@ function detectPendingConflicts(pendingPatch, resume) {
   return [conflictEntry(pendingPatch, pendingPatch.before, actual)];
 }
 
+function describePendingSlot(pendingPatch) {
+  if (pendingPatch.kind === "batch") {
+    return `batch "${pendingPatch.title || "untitled"}" (${(pendingPatch.changes || []).length} changes)`;
+  }
+  return `${pendingPatch.sectionId}${
+    typeof pendingPatch.index === "number" ? `[${pendingPatch.index}]` : ""
+  }`;
+}
+
+// There is exactly one pending slot and the workbench shows exactly one banner,
+// so a second proposal used to overwrite the first with no error: the user never
+// learned that a suggestion they were about to review had been discarded. The
+// write is now refused unless the caller says it means to replace.
+function assertPendingSlotFree(pendingPatch, replace) {
+  if (!pendingPatch || replace) return;
+  const error = new Error(
+    `A pending patch is already awaiting review (${describePendingSlot(pendingPatch)}, id ${pendingPatch.id}). ` +
+      "Ask the user to accept or reject it, or re-send with replace=true to discard it."
+  );
+  error.name = "PendingPatchExists";
+  error.pendingId = pendingPatch.id;
+  throw error;
+}
+
 function createResumeCore({ bus, persistence }) {
   let resume = persistence.loadResume();
   let pendingPatch = persistence.loadPendingPatch();
@@ -422,7 +466,13 @@ function createResumeCore({ bus, persistence }) {
     }
     let clearedPendingPatch = false;
     if (isPendingStaleForActiveDocument(pendingPatch, activeDocument)) {
-      persistence.clearPendingPatch();
+      // Dropping a stale patch is a cleanup, not the caller's operation. A failed
+      // write here must not take the document binding down with it.
+      try {
+        persistence.clearPendingPatch();
+      } catch (error) {
+        bus.emit("pending.clearFailed", { patch: pendingPatch, error });
+      }
       pendingPatch = null;
       clearedPendingPatch = true;
       bus.emit("pending.cleared", { reason: "stale-document", activeDocument });
@@ -445,10 +495,11 @@ function createResumeCore({ bus, persistence }) {
     bus.emit("selection.changed", next);
   }
 
-  function proposeSectionEdit({ sessionId, sectionId, content, index = 0, field, bulletIndex, evidence }) {
+  function proposeSectionEdit({ sessionId, sectionId, content, index = 0, field, bulletIndex, evidence, replace = false }) {
     if (!isActiveDocumentBound(activeDocument)) {
       throw new Error("Active document context is required before proposing edits");
     }
+    assertPendingSlotFree(pendingPatch, replace);
     const normalized = validateSinglePatchInput(resume, {
       sectionId,
       index,
@@ -478,10 +529,11 @@ function createResumeCore({ bus, persistence }) {
     return pendingPatch;
   }
 
-  function proposeBatchEdit({ sessionId, title, summary = "", changes, evidence, allowHighRisk = false }) {
+  function proposeBatchEdit({ sessionId, title, summary = "", changes, evidence, allowHighRisk = false, replace = false }) {
     if (!isActiveDocumentBound(activeDocument)) {
       throw new Error("Active document context is required before proposing edits");
     }
+    assertPendingSlotFree(pendingPatch, replace);
     if (typeof title !== "string" || !title.trim()) {
       throw new Error("Batch edit requires title");
     }
@@ -537,11 +589,30 @@ function createResumeCore({ bus, persistence }) {
     } else {
       nextResume = applySinglePatch(resume, pendingPatch);
     }
+
+    // Disk first, memory second. The old order advanced the in-memory resume
+    // before saving, so a failed write left the runtime claiming an edit that was
+    // not on disk and the pending slot already consumed. If saveResume throws now,
+    // nothing has moved and the patch is still reviewable.
+    const appliedPatch = pendingPatch;
+    persistence.saveResume(nextResume);
     resume = nextResume;
-    persistence.saveResume(resume);
-    persistence.clearPendingPatch();
-    bus.emit("resume.updated", { sessionId, resume, patch: pendingPatch });
+
+    // The patch is applied and durable at this point. If clearing the slot fails,
+    // the content is still correct; the stale pending file will be re-offered on
+    // restart and its recorded `before` no longer matches, so it surfaces as a
+    // conflict rather than applying twice.
+    let clearError = null;
+    try {
+      persistence.clearPendingPatch();
+    } catch (error) {
+      clearError = error;
+    }
     pendingPatch = null;
+    bus.emit("resume.updated", { sessionId, resume, patch: appliedPatch });
+    if (clearError) {
+      bus.emit("pending.clearFailed", { patch: appliedPatch, error: clearError });
+    }
   }
 
   function rejectPendingPatch({ sessionId, pendingId }) {
@@ -575,4 +646,8 @@ function createResumeCore({ bus, persistence }) {
   };
 }
 
-module.exports = { createResumeCore, detectPendingConflicts };
+module.exports = {
+  createResumeCore,
+  detectPendingConflicts,
+  isPendingStaleForActiveDocument
+};

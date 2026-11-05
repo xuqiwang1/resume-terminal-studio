@@ -3,11 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import defaultResumeModule from "./defaultResume.cjs";
 import workspacePathModule from "./workspacePath.cjs";
+import atomicFileModule from "./core/atomicFile.cjs";
 import { getAgentGuideContent, getWorkspaceReadmeContent } from "./workspaceInstructions.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { createDefaultResume } = defaultResumeModule;
 const { resolveWorkspaceDir } = workspacePathModule;
+const { writeFileAtomic, writeJsonAtomic } = atomicFileModule;
 const workspaceDir = resolveWorkspaceDir(process.env, __dirname);
 const activeResumePath = path.join(workspaceDir, "active-resume.json");
 const terminalAgentPath = path.join(workspaceDir, "resume-agent");
@@ -188,8 +190,14 @@ export function wrapResumeDocument(resume) {
 }
 
 export async function writeActiveResume(resume) {
+  if (!resume || typeof resume !== "object") {
+    throw new Error("writeActiveResume requires a resume object");
+  }
   await ensureWorkspace();
-  await writeFile(activeResumePath, JSON.stringify(resume, null, 2), "utf8");
+  // Atomic: a reader (the workbench stream, the CLI, an agent) sees either the
+  // whole previous resume or the whole new one. The plain writeFile this replaced
+  // is what readActiveResumeRobust()'s retry loop was working around.
+  await writeJsonAtomic(activeResumePath, resume);
   return activeResumePath;
 }
 
@@ -212,23 +220,48 @@ export async function writeContextState(patch = {}) {
     view: { ...current.view, ...(patch.view || {}) },
     selection: { ...current.selection, ...(patch.selection || {}) }
   });
-  await writeFile(contextStatePath, JSON.stringify(next, null, 2), "utf8");
+  await writeJsonAtomic(contextStatePath, next);
   return next;
 }
 
 export async function readActiveResume() {
   await ensureWorkspace({ initialize: false });
   const raw = await readFile(activeResumePath, "utf8");
-  return JSON.parse(raw);
+  const parsed = JSON.parse(raw);
+  // An array or a bare string parses fine but is not a resume, and letting one
+  // through turns every later `resume.experience` into undefined.
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${activeResumePath} does not contain a resume object`);
+  }
+  return parsed;
 }
 
+// "Missing" and "unreadable" used to share one catch block, so a resume damaged
+// by a crashed write was replaced by the blank template on the next launch and the
+// user's content was gone. A damaged file is now moved aside before the template
+// is written, so the bytes are still there to recover from.
 export async function ensureActiveResume(defaultResume) {
   await ensureWorkspace();
   try {
     return await readActiveResume();
-  } catch {
+  } catch (error) {
     if (!defaultResume) {
       throw new Error("Active resume does not exist");
+    }
+    if (error.code !== "ENOENT") {
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const quarantinePath = `${activeResumePath}.corrupt-${stamp}`;
+      try {
+        await rm(quarantinePath, { force: true });
+        const raw = await readFile(activeResumePath, "utf8");
+        await writeFileAtomic(quarantinePath, raw);
+        console.error(
+          `[resume-studio] ${activeResumePath} was unreadable (${error.message}); ` +
+            `preserved a copy at ${quarantinePath} before writing a blank resume.`
+        );
+      } catch {
+        // If even the copy fails we still must not leave the app without a resume.
+      }
     }
     await writeActiveResume(defaultResume);
     return defaultResume;
@@ -316,15 +349,24 @@ export async function migrateActiveResumeFile(defaultResume) {
   const migrated = migrateResumeShape(current, defaultResume);
   if (migrated === current) return;
   try {
-    await writeFile(
-      path.join(workspaceDir, "active-resume.bak.json"),
-      JSON.stringify(current, null, 2),
-      "utf8"
-    );
+    await writeJsonAtomic(path.join(workspaceDir, "active-resume.bak.json"), current);
   } catch {
     // backup is best-effort
   }
   await writeActiveResume(migrated);
+}
+
+// Nearly every store function calls ensureWorkspace(), so rewriting and
+// chmod-ing these files unconditionally meant dozens of writes per session.
+// Writing only on an actual content change makes the calls idempotent.
+async function writeFileIfChanged(filePath, content) {
+  try {
+    if ((await readFile(filePath, "utf8")) === content) return false;
+  } catch {
+    // Missing or unreadable — write it.
+  }
+  await writeFileAtomic(filePath, content);
+  return true;
 }
 
 async function ensureTerminalAgent() {
@@ -338,20 +380,39 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 export WORKSPACE_DIR="$SCRIPT_DIR"
 node "${agentSrcPath}" "$@"
 `;
-  await writeFile(terminalAgentPath, script, "utf8");
-  await chmod(terminalAgentPath, 0o755);
+  if (await writeFileIfChanged(terminalAgentPath, script)) {
+    await chmod(terminalAgentPath, 0o755);
+  }
 }
 
+// These files live in the user's workspace, which is a directory they own and
+// may edit. Overwriting them on every startup silently discarded any note they
+// had added. The generated guide is kept in its own file, and the agent-facing
+// entry points are only created when absent.
+const GENERATED_GUIDE_FILE = "RESUME-STUDIO-GUIDE.md";
+
 async function ensureWorkspaceInstructions() {
-  const claudeMdPath = path.join(workspaceDir, "CLAUDE.md");
-  const agentsMdPath = path.join(workspaceDir, "AGENTS.md");
-  const readmeMdPath = path.join(workspaceDir, "README.md");
   const agentGuideContent = getAgentGuideContent();
   const readmeMdContent = getWorkspaceReadmeContent();
 
-  await writeFile(claudeMdPath, agentGuideContent, "utf8");
-  await writeFile(agentsMdPath, agentGuideContent, "utf8");
-  await writeFile(readmeMdPath, readmeMdContent, "utf8");
+  // Always current: this file is ours and is documented as generated.
+  await writeFileIfChanged(path.join(workspaceDir, GENERATED_GUIDE_FILE), agentGuideContent);
+
+  for (const name of ["CLAUDE.md", "AGENTS.md"]) {
+    const target = path.join(workspaceDir, name);
+    try {
+      await readFile(target, "utf8");
+    } catch {
+      await writeFileAtomic(target, agentGuideContent);
+    }
+  }
+
+  const readmePath = path.join(workspaceDir, "README.md");
+  try {
+    await readFile(readmePath, "utf8");
+  } catch {
+    await writeFileAtomic(readmePath, readmeMdContent);
+  }
 }
 
 async function ensureActivityFiles() {
@@ -363,20 +424,19 @@ async function ensureActivityFiles() {
     }
     JSON.parse(raw);
   } catch {
-    await writeFile(
-      activityStatePath,
-      JSON.stringify({ session: null, lastCommand: "", updatedAt: null }, null, 2),
-      "utf8"
-    );
+    await writeJsonAtomic(activityStatePath, { session: null, lastCommand: "", updatedAt: null });
   }
 }
 
 export async function saveResumeDocument(resume, suggestedName) {
+  if (!resume || typeof resume !== "object" || Array.isArray(resume)) {
+    throw new Error("saveResumeDocument requires a resume object");
+  }
   await ensureWorkspace();
   const document = wrapResumeDocument(resume);
   const fileName = `${safeSlug(suggestedName || resume.name || "resume")}.rts.json`;
   const fullPath = path.join(workspaceDir, fileName);
-  await writeFile(fullPath, JSON.stringify(document, null, 2), "utf8");
+  await writeJsonAtomic(fullPath, document);
   await writeActiveResume(resume);
   return {
     fileName,
@@ -393,14 +453,28 @@ export async function listResumeDocuments() {
 
   for (const fileName of targetFiles) {
     const fullPath = path.join(workspaceDir, fileName);
-    const raw = await readFile(fullPath, "utf8");
-    const parsed = JSON.parse(raw);
-    items.push({
-      fileName,
-      fullPath,
-      updatedAt: parsed?.meta?.updatedAt || null,
-      title: parsed?.meta?.title || fileName
-    });
+    // An unguarded JSON.parse here meant a single damaged .rts.json made the whole
+    // file list — and the panel that renders it — fail to load. A bad document is
+    // listed as unreadable so the user can still see and delete it.
+    try {
+      const raw = await readFile(fullPath, "utf8");
+      const parsed = JSON.parse(raw);
+      items.push({
+        fileName,
+        fullPath,
+        updatedAt: parsed?.meta?.updatedAt || null,
+        title: parsed?.meta?.title || fileName
+      });
+    } catch (error) {
+      items.push({
+        fileName,
+        fullPath,
+        updatedAt: null,
+        title: fileName,
+        unreadable: true,
+        error: error.message
+      });
+    }
   }
 
   return items;
@@ -412,6 +486,11 @@ export async function openResumeDocument(fileName) {
   const fullPath = path.join(workspaceDir, fileName);
   const raw = await readFile(fullPath, "utf8");
   const parsed = JSON.parse(raw);
+  // Without this, a document whose `resume` key is missing used to overwrite the
+  // active resume with undefined and blank the workbench.
+  if (!parsed?.resume || typeof parsed.resume !== "object" || Array.isArray(parsed.resume)) {
+    throw new Error(`${fileName} does not contain a resume`);
+  }
   await writeActiveResume(parsed.resume);
   return {
     fileName,
@@ -517,7 +596,7 @@ export async function restoreResumeArchive(fileName, { archiveCurrent = true } =
 }
 
 export async function writeSelectionState(selection) {
-  await writeFile(selectionStatePath, JSON.stringify(selection, null, 2), "utf8");
+  await writeJsonAtomic(selectionStatePath, selection);
   await writeContextState({ selection });
 }
 

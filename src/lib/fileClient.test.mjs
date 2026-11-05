@@ -46,6 +46,11 @@ check("fileClient exports fetchPendingPatch", source.includes("export async func
 check("fetchPendingPatch calls pending endpoint", source.includes('apiUrl("/api/patch/pending")'));
 check("confirmPendingPatch surfaces server errors", source.includes('payload.error || "Failed to confirm patch"'));
 check("rejectPendingPatch surfaces server errors", source.includes('payload.error || "Failed to reject patch"'));
+check("fileClient exports saveResumeContent", source.includes("export async function saveResumeContent"));
+check("saveResumeContent posts to the content endpoint", source.includes('apiUrl("/api/resume/content")'));
+check("saveResumeContent surfaces server errors", source.includes('payload.error || "Failed to save resume content"'));
+// Without keepalive the close-time flush is cancelled with the document.
+check("flushResumeContent uses keepalive", source.includes("export function flushResumeContent") && source.includes("keepalive: true"));
 
 globalThis.window = previousWindow;
 

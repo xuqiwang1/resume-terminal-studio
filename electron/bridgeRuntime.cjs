@@ -9,7 +9,9 @@ function canListen(port) {
     server.once("listening", () => {
       server.close(() => resolve(true));
     });
-    server.listen(port, "127.0.0.1");
+    // exclusive so a port another process holds with SO_REUSEADDR is reported as
+    // taken rather than probing clean and then failing at the real listen.
+    server.listen({ port, host: "127.0.0.1", exclusive: true });
   });
 }
 

@@ -24,6 +24,7 @@ function createMcpHandlers({
   readActivityEvents,
   readActivityState,
   readContextState,
+  readPendingPatch,
   runtime,
   terminalAgentPath,
   workspaceDir,
@@ -47,11 +48,20 @@ function createMcpHandlers({
     }
 
     const materials = [];
+    const unreadable = [];
     for (const fileName of files) {
       if (remaining <= 0) break;
       const fullPath = path.join(extractedDir, fileName);
       if (path.dirname(fullPath) !== extractedDir) continue;
-      const raw = fs.readFileSync(fullPath, "utf8");
+      // One unreadable extract used to throw out of get_materials entirely, so a
+      // single permission error hid every other piece of the user's evidence.
+      let raw;
+      try {
+        raw = fs.readFileSync(fullPath, "utf8");
+      } catch (error) {
+        unreadable.push({ fileName, error: error.message });
+        continue;
+      }
       const text = raw.slice(0, remaining);
       remaining -= text.length;
       materials.push({
@@ -69,6 +79,7 @@ function createMcpHandlers({
       count: materials.length,
       maxChars: limit,
       truncated: remaining <= 0,
+      unreadable,
       hint:
         materials.length > 0
           ? "Use these materials to write finished resume copy, then submit via propose_edit for one narrow edit or propose_batch_edit for one coherent multi-field task. Do not edit active-resume.json directly. The user must accept the pending patch in the app."
@@ -77,22 +88,42 @@ function createMcpHandlers({
     };
   }
 
+  // A pending patch is only meaningful if something can show it to the user for
+  // review, so a bound document context is a real precondition, not red tape.
+  // The check stays strict; the message now says how to satisfy it.
   function assertContextSafe() {
     const context = readContextState();
     const activeDocument = context?.document;
     const appPath = activeDocument?.activeResumePath;
-    if (!appPath || !activeDocument?.documentId || !Number.isFinite(Number(activeDocument.revision))) {
-      throw new Error("Resume Studio active document context is missing; open the app before proposing edits");
-    }
-    if (appPath && path.resolve(appPath) !== path.resolve(activeResumePath)) {
+    const revision = Number(activeDocument?.revision);
+    if (!appPath || !activeDocument?.documentId || !Number.isInteger(revision) || revision < 0) {
       throw new Error(
-        `MCP workspace mismatch: app is editing ${appPath}, but MCP is writing ${activeResumePath}`
+        "Resume Studio active document context is missing, so a pending patch would have " +
+          "nowhere to be reviewed. Start the desktop app (or `npm run dev:bridge`) and retry."
       );
     }
-    core.hydrateActiveDocument({
-      ...activeDocument,
-      revision: Number(activeDocument.revision)
-    });
+    if (path.resolve(appPath) !== path.resolve(activeResumePath)) {
+      throw new Error(
+        `MCP workspace mismatch: app is editing ${appPath}, but MCP is writing ${activeResumePath}. ` +
+          "Set WORKSPACE_DIR for the MCP server to the workspace the app has open."
+      );
+    }
+    core.hydrateActiveDocument({ ...activeDocument, revision });
+    // The resume on disk is the authority. Without this re-read the recorded
+    // `before` could come from a stale in-memory copy, which would make the
+    // patch look conflict-free at confirm time when it is not.
+    try {
+      core.hydrateResume(loadResume());
+    } catch {
+      // Keep whatever the core already holds; propose validation will complain.
+    }
+    // The MCP server is a separate process from the bridge, so its core's idea of
+    // the pending slot is only as fresh as its last read. Without this, the
+    // "a patch is already awaiting review" guard would consult stale memory and
+    // could still clobber a patch the user is looking at.
+    if (typeof readPendingPatch === "function") {
+      core.hydratePendingPatch(readPendingPatch());
+    }
   }
 
   function callTool(name, args = {}) {
@@ -124,7 +155,8 @@ function createMcpHandlers({
           field: args.field,
           bulletIndex: args.bulletIndex,
           content: args.content,
-          evidence: args.evidence || []
+          evidence: args.evidence || [],
+          replace: args.replace === true
         });
         return textContent({
           status: "pending_confirmation",
@@ -149,7 +181,8 @@ function createMcpHandlers({
           summary: args.summary,
           changes: args.changes,
           evidence: args.evidence || [],
-          allowHighRisk: Boolean(args.allowHighRisk)
+          allowHighRisk: Boolean(args.allowHighRisk),
+          replace: args.replace === true
         });
         const durationMs = Date.now() - startedAt;
         const sections = [...new Set((pending.changes || []).map((change) => change.sectionId))];

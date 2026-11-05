@@ -15,19 +15,28 @@ function getFreePort() {
   });
 }
 
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "resume-server-flow-"));
+process.env.WORKSPACE_DIR = tmp;
+process.env.RESUME_SKIP_DISCOVERY = "1";
+// The bridge no longer has an unauthenticated mode, so the test must present a
+// credential like any other client.
+process.env.RESUME_BRIDGE_TOKEN = "server-flow-test-token";
+
+const authHeaders = { "x-resume-studio-token": process.env.RESUME_BRIDGE_TOKEN };
+
 async function postJson(baseUrl, pathname, body) {
   const response = await fetch(`${baseUrl}${pathname}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders },
     body: JSON.stringify(body)
   });
   const payload = await response.json();
   return { response, payload };
 }
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "resume-server-flow-"));
-process.env.WORKSPACE_DIR = tmp;
-process.env.RESUME_SKIP_DISCOVERY = "1";
+function getJson(baseUrl, pathname) {
+  return fetch(`${baseUrl}${pathname}`, { headers: authHeaders }).then((res) => res.json());
+}
 
 const activeResumePath = path.join(tmp, "active-resume.json");
 const contextStatePath = path.join(tmp, "context-state.json");
@@ -113,12 +122,12 @@ const handle = await startBridgeServer(port);
 const baseUrl = `http://127.0.0.1:${port}`;
 
 try {
-  const startupContext = await fetch(`${baseUrl}/api/context`).then((res) => res.json());
+  const startupContext = await getJson(baseUrl, "/api/context");
   assert.equal(startupContext.context.document.documentId, "template:active");
   assert.equal(startupContext.context.document.mode, "template");
   assert.ok(startupContext.context.document.revision > 5);
 
-  const pendingAfterStartup = await fetch(`${baseUrl}/api/patch/pending`).then((res) => res.json());
+  const pendingAfterStartup = await getJson(baseUrl, "/api/patch/pending");
   assert.equal(pendingAfterStartup.pending, null);
 
   const externallyEditedResume = {
@@ -127,7 +136,7 @@ try {
     skills: [{ category: "External", content: "disk is authoritative" }]
   };
   fs.writeFileSync(activeResumePath, JSON.stringify(externallyEditedResume, null, 2), "utf8");
-  const activeAfterExternalEdit = await fetch(`${baseUrl}/api/resume/active`).then((res) => res.json());
+  const activeAfterExternalEdit = await getJson(baseUrl, "/api/resume/active");
   assert.equal(activeAfterExternalEdit.resume.name, "Externally Edited");
   assert.deepEqual(activeAfterExternalEdit.resume.skills, externallyEditedResume.skills);
   fs.writeFileSync(activeResumePath, JSON.stringify(sourceResume, null, 2), "utf8");
@@ -137,7 +146,7 @@ try {
   assert.equal(firstOpen.payload.context.document.documentId, "file:saved-resume.rts.json");
   assert.ok(firstOpen.payload.context.document.revision > startupContext.context.document.revision);
 
-  const pendingAfterFirstOpen = await fetch(`${baseUrl}/api/patch/pending`).then((res) => res.json());
+  const pendingAfterFirstOpen = await getJson(baseUrl, "/api/patch/pending");
   assert.equal(pendingAfterFirstOpen.pending, null);
 
   const clientEditedResume = {
@@ -173,6 +182,10 @@ try {
     "utf8"
   );
 
+  // Confirm takes presentation from the client (it may hold unsaved styling) but
+  // content from disk (that is where agents write, and what conflict detection
+  // must compare against). Here disk and client content agree apart from the
+  // patched field, so the accept succeeds.
   const confirmWithClientState = await postJson(baseUrl, "/api/patch/confirm", {
     pendingId: "pending-ui-state",
     resume: clientEditedResume
@@ -183,7 +196,69 @@ try {
   assert.deepEqual(confirmWithClientState.payload.resume.avatarPos, clientEditedResume.avatarPos);
   assert.deepEqual(confirmWithClientState.payload.resume.fieldStyles, clientEditedResume.fieldStyles);
   assert.deepEqual(confirmWithClientState.payload.resume.layoutConfig, clientEditedResume.layoutConfig);
-  assert.deepEqual(confirmWithClientState.payload.resume.projects, clientEditedResume.projects);
+  // Content comes from the file, not from the request body.
+  assert.deepEqual(
+    confirmWithClientState.payload.resume.projects,
+    [],
+    "content must come from disk, not the client's copy"
+  );
+
+  // An edit that reaches disk between propose and accept must be REPORTED, not
+  // overwritten. Previously the server hydrated from the client's resume before
+  // checking, so it compared that copy against itself and the disk edit was lost.
+  const diskEditedResume = {
+    ...sourceResume,
+    summary: "a human edited this on disk after the patch was proposed"
+  };
+  fs.writeFileSync(activeResumePath, JSON.stringify(diskEditedResume, null, 2), "utf8");
+  fs.writeFileSync(
+    pendingPatchPath,
+    JSON.stringify(
+      {
+        id: "pending-conflict",
+        kind: "single",
+        sessionId: "session-conflict",
+        documentId: "file:saved-resume.rts.json",
+        revision: firstOpen.payload.context.document.revision,
+        activeResumePath,
+        sectionId: "summary",
+        before: "AI patched summary",
+        after: "patch that must not silently win"
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  const staleConfirm = await postJson(baseUrl, "/api/patch/confirm", {
+    pendingId: "pending-conflict",
+    // The client still believes the pre-edit text is current.
+    resume: { ...clientEditedResume, summary: "AI patched summary" }
+  });
+  assert.equal(staleConfirm.response.status, 409, "a disk edit under the patch must conflict");
+  assert.ok(Array.isArray(staleConfirm.payload.conflicts) && staleConfirm.payload.conflicts.length);
+  assert.equal(staleConfirm.payload.conflicts[0].sectionId, "summary");
+  assert.equal(
+    staleConfirm.payload.conflicts[0].actual,
+    diskEditedResume.summary,
+    "the conflict must report what is actually on disk"
+  );
+  const resumeAfterConflict = await getJson(baseUrl, "/api/resume/active");
+  assert.equal(
+    resumeAfterConflict.resume.summary,
+    diskEditedResume.summary,
+    "the disk edit must survive a refused confirm"
+  );
+
+  // The same patch applies once the user acknowledges the conflict.
+  const forcedConfirm = await postJson(baseUrl, "/api/patch/confirm", {
+    pendingId: "pending-conflict",
+    resume: { ...clientEditedResume, summary: "AI patched summary" },
+    allowConflict: true
+  });
+  assert.equal(forcedConfirm.response.status, 200);
+  assert.equal(forcedConfirm.payload.resume.summary, "patch that must not silently win");
 
   fs.writeFileSync(
     pendingPatchPath,
@@ -213,7 +288,7 @@ try {
     "re-opening the same file must bump revision"
   );
 
-  const pendingAfterSecondOpen = await fetch(`${baseUrl}/api/patch/pending`).then((res) => res.json());
+  const pendingAfterSecondOpen = await getJson(baseUrl, "/api/patch/pending");
   assert.equal(pendingAfterSecondOpen.pending, null);
 
   fs.writeFileSync(
@@ -246,10 +321,41 @@ try {
 
   assert.equal(concurrentOpen.response.status, 200);
   assert.notEqual(concurrentConfirm.response.status, 200);
-  const resumeAfterConcurrent = await fetch(`${baseUrl}/api/resume/active`).then((res) => res.json());
+  const resumeAfterConcurrent = await getJson(baseUrl, "/api/resume/active");
   assert.equal(resumeAfterConcurrent.resume.summary, concurrentOpen.payload.resume.summary);
-  const pendingAfterConcurrent = await fetch(`${baseUrl}/api/patch/pending`).then((res) => res.json());
+  const pendingAfterConcurrent = await getJson(baseUrl, "/api/patch/pending");
   assert.equal(pendingAfterConcurrent.pending, null);
+
+  // Content autosave: the workbench had no way to persist text at all, only
+  // styling, so anything typed lived in React state until a manual save.
+  const autosaved = await postJson(baseUrl, "/api/resume/content", {
+    resume: { ...sourceResume, summary: "typed into the workbench" }
+  });
+  assert.equal(autosaved.response.status, 200);
+  const afterAutosave = await getJson(baseUrl, "/api/resume/active");
+  assert.equal(afterAutosave.resume.summary, "typed into the workbench");
+  const rejectedAutosave = await postJson(baseUrl, "/api/resume/content", { resume: "not an object" });
+  assert.equal(rejectedAutosave.response.status, 400);
+
+  // A malformed index used to arrive as `null` and be read as item 0.
+  const badIndex = await postJson(baseUrl, "/api/patch/propose", {
+    patch: { sectionId: "experience", index: null, after: "x" }
+  });
+  assert.equal(badIndex.response.status, 400);
+  assert.match(badIndex.payload.error, /index must be a non-negative integer/);
+
+  // Unauthenticated requests are refused; the bridge has no open mode now.
+  const unauthorized = await fetch(`${baseUrl}/api/health`);
+  assert.equal(unauthorized.status, 401);
+  // The token is accepted as a query parameter only on the SSE endpoints.
+  const queryTokenOnMutating = await fetch(
+    `${baseUrl}/api/resume/active?token=${process.env.RESUME_BRIDGE_TOKEN}`
+  );
+  assert.equal(queryTokenOnMutating.status, 401);
+  const foreignOrigin = await fetch(`${baseUrl}/api/health`, {
+    headers: { ...authHeaders, origin: "https://evil.example.com" }
+  });
+  assert.equal(foreignOrigin.status, 403);
 
   const newTemplate = await postJson(baseUrl, "/api/resume/new", { reason: "server-flow-test" });
   assert.equal(newTemplate.response.status, 200);
@@ -260,7 +366,7 @@ try {
     "new template flow must atomically bump revision"
   );
 
-  const contextAfterNew = await fetch(`${baseUrl}/api/context`).then((res) => res.json());
+  const contextAfterNew = await getJson(baseUrl, "/api/context");
   assert.equal(contextAfterNew.context.document.documentId, "template:active");
   assert.equal(
     contextAfterNew.context.document.revision,

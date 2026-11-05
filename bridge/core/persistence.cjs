@@ -1,57 +1,88 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { readJsonSync, writeFileAtomicSync, writeJsonAtomicSync } = require("./atomicFile.cjs");
 
-function createPersistence({ workspaceDir }) {
+function createPersistence({ workspaceDir, onCorruption } = {}) {
+  const corruptionEvents = [];
+
   function ensureDir() {
     fs.mkdirSync(workspaceDir, { recursive: true });
   }
 
-  function readJson(filePath, fallback = null) {
-    try {
-      const raw = fs.readFileSync(filePath, "utf8");
-      return raw.trim() ? JSON.parse(raw) : fallback;
-    } catch {
-      return fallback;
+  function filePath(name) {
+    return path.join(workspaceDir, name);
+  }
+
+  // Corruption is surfaced rather than swallowed: the bytes are moved aside for
+  // recovery and the event is recorded so a caller (or a test) can see that the
+  // fallback it just received is a damaged file, not an absent one.
+  function reportCorruption(event) {
+    corruptionEvents.push({ ...event, at: new Date().toISOString() });
+    if (typeof onCorruption === "function") {
+      try {
+        onCorruption(event);
+      } catch {
+        // A reporting hook must never break a read.
+      }
     }
   }
 
-  function writeJson(filePath, value) {
+  function readJson(name, { fallback = null, quarantine = false } = {}) {
+    const result = readJsonSync(filePath(name), { fallback, quarantine, label: name });
+    if (result.corrupt) {
+      reportCorruption({
+        file: name,
+        path: filePath(name),
+        quarantinePath: result.quarantinePath || null,
+        reason: result.reason
+      });
+    }
+    return result.value;
+  }
+
+  function writeJson(name, value) {
     ensureDir();
-    fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
+    writeJsonAtomicSync(filePath(name), value);
+  }
+
+  function loadContextState() {
+    return readJson("context-state.json", { fallback: {}, quarantine: true });
+  }
+
+  function saveContextState(state) {
+    writeJson("context-state.json", state || {});
   }
 
   return {
     saveResume(resume) {
-      writeJson(path.join(workspaceDir, "active-resume.json"), resume);
+      writeJson("active-resume.json", resume);
     },
     loadResume() {
-      return readJson(path.join(workspaceDir, "active-resume.json"));
+      // The resume is the asset worth protecting: a damaged file is quarantined so
+      // the next save cannot overwrite it with a blank document.
+      return readJson("active-resume.json", { fallback: null, quarantine: true });
     },
     savePendingPatch(pendingPatch) {
-      writeJson(path.join(workspaceDir, "pending-patch.json"), pendingPatch);
+      writeJson("pending-patch.json", pendingPatch);
     },
     loadPendingPatch() {
-      return readJson(path.join(workspaceDir, "pending-patch.json"));
+      return readJson("pending-patch.json", { fallback: null, quarantine: true });
     },
     clearPendingPatch() {
       ensureDir();
-      fs.writeFileSync(path.join(workspaceDir, "pending-patch.json"), "");
+      writeFileAtomicSync(filePath("pending-patch.json"), "");
     },
     saveSelection(selection) {
-      writeJson(path.join(workspaceDir, "selection-state.json"), selection);
+      writeJson("selection-state.json", selection);
     },
     loadSelection() {
-      return readJson(path.join(workspaceDir, "selection-state.json"), {});
+      return readJson("selection-state.json", { fallback: {} });
     },
-    saveContextState(state) {
-      writeJson(path.join(workspaceDir, "context-state.json"), state || {});
-    },
-    loadContextState() {
-      return readJson(path.join(workspaceDir, "context-state.json"), {});
-    },
+    saveContextState,
+    loadContextState,
     saveActiveDocument(document) {
-      const current = this.loadContextState() || {};
-      this.saveContextState({
+      const current = loadContextState() || {};
+      saveContextState({
         ...current,
         document: {
           ...(current.document || {}),
@@ -61,21 +92,23 @@ function createPersistence({ workspaceDir }) {
       });
     },
     loadActiveDocument() {
-      const state = this.loadContextState();
+      const state = loadContextState();
       return state?.document || null;
     },
     appendActivity(event) {
       ensureDir();
-      fs.appendFileSync(
-        path.join(workspaceDir, "activity-log.ndjson"),
-        `${JSON.stringify(event)}\n`
-      );
+      // Append-only log: a partial line here costs one event, and rewriting the
+      // whole file atomically would cost O(size) on every append.
+      fs.appendFileSync(filePath("activity-log.ndjson"), `${JSON.stringify(event)}\n`);
     },
     saveActivityState(state) {
-      writeJson(path.join(workspaceDir, "activity-state.json"), state);
+      writeJson("activity-state.json", state);
     },
     loadActivityState() {
-      return readJson(path.join(workspaceDir, "activity-state.json"), {});
+      return readJson("activity-state.json", { fallback: {} });
+    },
+    getCorruptionEvents() {
+      return [...corruptionEvents];
     },
     workspaceDir
   };

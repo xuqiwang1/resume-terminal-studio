@@ -7,6 +7,7 @@ const { configureBridgeRuntime } = require("./bridgeRuntime.cjs");
 const isDev = !app.isPackaged;
 let mainWindow = null;
 let bridgeRuntime = null;
+let bridgeModule = null;
 let activeSession = null;
 
 function getWorkspacePath() {
@@ -36,11 +37,19 @@ function ensureWorkspace() {
   const resume = path.join(ws, "active-resume.json");
   const workspaceMarker = path.join(ws, ".resume-studio-workspace.json");
 
+  // A pre-marker workspace belongs to a user upgrading from an older build. This
+  // used to *move* their resume into history, so the app opened on a blank
+  // template and their content looked lost. Snapshot it instead and leave the
+  // active resume where it is.
   if (!isDev && fs.existsSync(resume) && !fs.existsSync(workspaceMarker)) {
-    const historyDir = path.join(ws, "history");
-    fs.mkdirSync(historyDir, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    fs.renameSync(resume, path.join(historyDir, `${stamp}-legacy-active-resume.json`));
+    try {
+      const historyDir = path.join(ws, "history");
+      fs.mkdirSync(historyDir, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      fs.copyFileSync(resume, path.join(historyDir, `${stamp}-legacy-active-resume.json`));
+    } catch (error) {
+      console.error("Failed to snapshot the legacy resume:", error);
+    }
   }
 
   if (!fs.existsSync(resume)) {
@@ -79,13 +88,30 @@ async function startBridge() {
     });
   }
   try {
-    const { startBridgeServer } = await import(pathToFileURL(bridgeRuntime.bridgeServerPath).href);
-    const started = await startBridgeServer(bridgeRuntime.port);
+    bridgeModule = await import(pathToFileURL(bridgeRuntime.bridgeServerPath).href);
+    const started = await bridgeModule.startBridgeServer(bridgeRuntime.port);
     activeSession = started.runtime.activeSession;
   } catch (err) {
     console.error("Failed to start bridge server inside main process:", err);
     throw err;
   }
+}
+
+// A window that silently never appears is the worst possible failure here: the
+// user double-clicks the app and nothing happens. Show the reason instead.
+function reportFatalStartupError(error) {
+  console.error("Resume Studio failed to start:", error);
+  const { dialog } = require("electron");
+  const detail = String(error?.stack || error?.message || error);
+  try {
+    dialog.showErrorBox(
+      "Resume Studio 无法启动",
+      `本地服务启动失败，简历未被修改。\n\n${detail}`
+    );
+  } catch {
+    // Dialogs are unavailable before ready; the console message stands.
+  }
+  app.exit(1);
 }
 
 function createWindow() {
@@ -129,39 +155,56 @@ function createWindow() {
   });
 }
 
-// PDF export from UI — opens a save dialog, then prints PrintView via a hidden window
-ipcMain.handle("export-pdf", async () => {
-  if (!mainWindow) throw new Error("No window");
+// PDF export from UI — opens a save dialog, then prints the current page.
+ipcMain.handle("export-pdf", async (event) => {
+  // Only our own window may drive this. An unvalidated handler lets any frame
+  // the renderer ever loads write a file to a path of the user's Downloads.
+  if (!mainWindow || event.sender !== mainWindow.webContents) {
+    throw new Error("Export is only available from the Resume Studio window");
+  }
 
-  const { dialog } = require("electron");
-  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-    title: "导出 PDF",
-    defaultPath: path.join(app.getPath("downloads"), `resume-${Date.now()}.pdf`),
-    filters: [{ name: "PDF", extensions: ["pdf"] }]
-  });
-  if (canceled || !filePath) return null;
+  try {
+    const { dialog } = require("electron");
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: "导出 PDF",
+      defaultPath: path.join(app.getPath("downloads"), `resume-${Date.now()}.pdf`),
+      filters: [{ name: "PDF", extensions: ["pdf"] }]
+    });
+    if (canceled || !filePath) return null;
 
-  const pdf = await mainWindow.webContents.printToPDF({
-    pageSize: "A4",
-    preferCSSPageSize: true,
-    printBackground: true,
-    margins: { top: 0, bottom: 0, left: 0, right: 0 },
-  });
-  fs.writeFileSync(filePath, pdf);
-  return filePath;
+    const pdf = await mainWindow.webContents.printToPDF({
+      pageSize: "A4",
+      preferCSSPageSize: true,
+      printBackground: true,
+      margins: { top: 0, bottom: 0, left: 0, right: 0 }
+    });
+    fs.writeFileSync(filePath, pdf);
+    return filePath;
+  } catch (error) {
+    // Surfaced to the renderer as a rejected invoke rather than an unhandled
+    // rejection in the main process.
+    console.error("PDF export failed:", error);
+    throw new Error(`导出 PDF 失败：${error.message}`);
+  }
 });
 
-app.whenReady().then(async () => {
-  await startBridge();
-  createWindow();
+app
+  .whenReady()
+  .then(async () => {
+    await startBridge();
+    createWindow();
 
-  app.on("activate", async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await startBridge();
-      createWindow();
-    }
-  });
-});
+    app.on("activate", async () => {
+      if (BrowserWindow.getAllWindows().length > 0) return;
+      try {
+        await startBridge();
+        createWindow();
+      } catch (error) {
+        reportFatalStartupError(error);
+      }
+    });
+  })
+  .catch(reportFatalStartupError);
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -169,6 +212,15 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", () => {
-  // cleanup if needed
+// Release the listening port, the file watchers, and the open SSE sockets so a
+// relaunch does not find the port taken by a process that is going away.
+let shuttingDown = false;
+app.on("before-quit", (event) => {
+  if (shuttingDown || !bridgeModule?.stopBridgeServer) return;
+  shuttingDown = true;
+  event.preventDefault();
+  Promise.resolve()
+    .then(() => bridgeModule.stopBridgeServer())
+    .catch((error) => console.error("Bridge shutdown failed:", error))
+    .finally(() => app.quit());
 });

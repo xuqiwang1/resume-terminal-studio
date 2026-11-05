@@ -107,6 +107,20 @@ function check(name, cond) {
     check("initialize returns server info", init.result?.serverInfo?.name === "resume-terminal-studio");
     check("server version is bumped so cached clients refresh schemas", init.result?.serverInfo?.version === "0.2.0");
     check("clean workspace gets a template resume", fs.existsSync(path.join(tmp, "active-resume.json")));
+    check("initialize falls back to a supported protocol version", init.result?.protocolVersion === "2024-11-05");
+
+    // The version used to be hardcoded, so a client on a newer revision was
+    // answered with a version it had not asked for.
+    send(11, "initialize", { protocolVersion: "2025-06-18" });
+    const initNewer = await waitFor(11);
+    check("initialize echoes a supported client protocol version", initNewer.result?.protocolVersion === "2025-06-18");
+
+    send(12, "initialize", { protocolVersion: "1999-01-01" });
+    const initUnknown = await waitFor(12);
+    check(
+      "initialize falls back for an unsupported client version",
+      initUnknown.result?.protocolVersion === "2024-11-05"
+    );
 
     send(2, "tools/list", {});
     const list = await waitFor(2);
@@ -165,12 +179,33 @@ function check(name, cond) {
     check("propose_edit for name returns pending confirmation", nameText.includes('"status": "pending_confirmation"'));
     check("propose_edit reports evidence count", nameText.includes('"evidenceCount": 1'));
 
+    // There is one pending slot and one review banner, so a second proposal must
+    // be refused rather than silently discarding the patch the user is reviewing.
+    send(61, "tools/call", {
+      name: "propose_edit",
+      arguments: { sectionId: "title", content: "Should not clobber the pending name patch" }
+    });
+    const clobberAttempt = await waitFor(61);
+    check("a second proposal is refused while one awaits review", !!clobberAttempt.error);
+    check(
+      "the refusal names the occupied slot",
+      (clobberAttempt.error?.message || "").includes("already awaiting review")
+    );
+
+    send(62, "tools/call", { name: "get_pending_patch", arguments: {} });
+    const survivingPending = await waitFor(62);
+    check(
+      "the first pending patch survives a refused proposal",
+      (survivingPending.result?.content?.[0]?.text || "").includes('"sectionId": "name"')
+    );
+
     send(7, "tools/call", {
       name: "propose_batch_edit",
       arguments: {
         title: "Fill education",
         summary: "Replace one and append one",
         allowHighRisk: true,
+        replace: true,
         evidence: [
           {
             sourcePath: "materials/notes.md",
@@ -211,6 +246,7 @@ function check(name, cond) {
       name: "propose_batch_edit",
       arguments: {
         title: "Rewrite scalar header",
+        replace: true,
         changes: [{ operation: "replace_field", sectionId: "title", value: "New title" }]
       }
     });
@@ -225,6 +261,7 @@ function check(name, cond) {
       name: "propose_batch_edit",
       arguments: {
         title: "Bad batch",
+        replace: true,
         changes: [{ operation: "replace_field", sectionId: "title", index: 0, value: "x" }]
       }
     });
@@ -241,7 +278,8 @@ function check(name, cond) {
       name: "propose_edit",
       arguments: {
         sectionId: "summary",
-        content: "Should fail without active document binding"
+        content: "Should fail without active document binding",
+        replace: true
       }
     });
     const missingContext = await waitFor(10);
@@ -250,6 +288,20 @@ function check(name, cond) {
       "missing active document returns explicit error",
       missingContext.error?.message.includes("active document context is missing")
     );
+
+    // A notification carries no id and must never be answered. Only
+    // notifications/initialized used to be handled; every other one got an error
+    // object back, which is a protocol violation.
+    const beforeNotifications = responses.size;
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/cancelled", params: {} })}\n`);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    check("notifications receive no response", responses.size === beforeNotifications);
+
+    // The server must stay usable after the notifications.
+    send(13, "tools/list", {});
+    const listAfterNotifications = await waitFor(13);
+    check("server still responds after notifications", Array.isArray(listAfterNotifications.result?.tools));
   } finally {
     child.kill();
     fs.rmSync(tmp, { recursive: true, force: true });

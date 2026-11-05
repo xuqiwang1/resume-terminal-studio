@@ -64,6 +64,10 @@ const toolDefinitions = [
           type: "string",
           description: "The finished, ready-to-use text you wrote for this field. The engine stores it verbatim; it does not rewrite it."
         },
+        replace: {
+          type: "boolean",
+          description: "There is one pending slot and the workbench shows one review banner, so proposing while a patch is already awaiting review is refused. Set true ONLY to deliberately discard that patch (for example to correct a proposal you just made). Never set it to work around a patch the user has not reviewed yet — ask them to accept or reject it instead."
+        },
         evidence: {
           type: "array",
           description: "Optional source materials used to justify this edit. Shown only in the pending review UI, never in the exported resume.",
@@ -109,6 +113,10 @@ const toolDefinitions = [
         allowHighRisk: {
           type: "boolean",
           description: "Required as true when changes include replace_item, append_item, or structured replace_section. Use only when the user explicitly wants a whole item/section rewritten or appended."
+        },
+        replace: {
+          type: "boolean",
+          description: "There is one pending slot and the workbench shows one review banner, so proposing while a patch is already awaiting review is refused. Set true ONLY to deliberately discard that patch (for example to correct a proposal you just made). Never set it to work around a patch the user has not reviewed yet — ask them to accept or reject it instead."
         },
         changes: {
           type: "array",

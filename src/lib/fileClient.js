@@ -137,6 +137,38 @@ export async function saveStyleSettings(styleSettings) {
   return response.json();
 }
 
+// Debounced autosave of the resume body. Without this, text and inline styling
+// existed only in React state and were lost on close or overwritten by the next
+// resume broadcast.
+export async function saveResumeContent(resume) {
+  const response = await fetch(apiUrl("/api/resume/content"), {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({ resume })
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Failed to save resume content");
+  }
+  return response.json();
+}
+
+// Last-chance flush when the window is closing. `keepalive` lets the request
+// outlive the document, which a normal fetch does not — without it, anything
+// typed inside the autosave debounce window is lost on close.
+export function flushResumeContent(resume) {
+  try {
+    fetch(apiUrl("/api/resume/content"), {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ resume }),
+      keepalive: true
+    }).catch(() => {});
+  } catch {
+    // Nothing more can be done at this point in the page's lifetime.
+  }
+}
+
 export async function listResumeFiles() {
   const response = await fetch(apiUrl("/api/files"), { headers: authHeaders() });
   if (!response.ok) throw new Error("Failed to list files");
