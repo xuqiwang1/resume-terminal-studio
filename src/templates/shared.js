@@ -38,3 +38,37 @@ export function resolveSectionOrder(layoutConfig, defaultOrder = ALL_SECTIONS) {
   return [...filtered, ...missing];
 }
 
+export function linkStyleForField(fieldStyles = {}, fid) {
+  const style = fieldStyles[fid] || {};
+  return {
+    "--r-link-color": style.linkColor || undefined,
+    "--r-link-decoration": style.linkUnderline === false ? "none" : undefined,
+  };
+}
+
+export function mergeFieldStyle(fieldStyles = {}, fid, base = {}) {
+  return { ...base, ...(fieldStyles[fid] || {}) };
+}
+
+export function resolveEducationDegree(item, index, total = 0) {
+  const raw = typeof item?.degree === "string" ? item.degree.trim() : "";
+  if (raw) return raw;
+  if (total >= 2) {
+    if (index === 0) return "硕士";
+    if (index === 1) return "本科";
+  }
+  return "";
+}
+
+export function hasEntryContent(item) {
+  if (!item || typeof item !== "object") return false;
+  return Boolean(
+    String(item.name || "").trim() ||
+    String(item.company || "").trim() ||
+    String(item.role || "").trim() ||
+    String(item.details || "").trim() ||
+    String(item.date || "").trim()
+  );
+}
+
+

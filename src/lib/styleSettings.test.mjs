@@ -44,6 +44,9 @@ assert.equal(custom.pagePadding, 40);
 assert.equal(custom.fontId, "sans");
 assert.equal(custom.ruleStyle, "bold");
 assert.equal(custom.fontSize.heading, 24);
+assert.equal(normalizeStyleSettings({ ruleStyle: "thick" }).ruleStyle, "thick");
+assert.equal(normalizeStyleSettings({ ruleStyle: "double" }).ruleStyle, "double");
+assert.equal(normalizeStyleSettings({ ruleStyle: "none" }).ruleStyle, "none");
 
 // Template switch: values still at the old preset move to the new one...
 const classic = styleSettingsFromPreset("classic");

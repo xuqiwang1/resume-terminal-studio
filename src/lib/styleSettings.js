@@ -20,7 +20,8 @@ export const STYLE_LIMITS = {
   muted: { min: 6, max: 24 }
 };
 
-const RULE_STYLES = ["thin", "bold", "none"];
+export const RULE_STYLE_IDS = ["thin", "thick", "double", "bold", "none"];
+const RULE_STYLES = RULE_STYLE_IDS;
 
 function clamp(value, { min, max }, fallback) {
   const num = typeof value === "number" ? value : Number(value);
@@ -86,8 +87,8 @@ export function applyTemplatePreset(current, nextTemplateId) {
   return {
     ...settings,
     templateId: nextTemplateId,
-    fontId: carry("fontId"),
-    colorId: carry("colorId"),
+    fontId: toPreset.fontId,
+    colorId: toPreset.colorId,
     lineHeight: carry("lineHeight"),
     sectionGap: carry("sectionGap"),
     pagePadding: carry("pagePadding"),

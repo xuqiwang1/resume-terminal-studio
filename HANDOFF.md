@@ -1,15 +1,20 @@
 # Resume Studio Handoff
 
-Updated: 2026-08-21
+Updated: 2026-11-15
 
 ## Current State
 
 - The app is in active development for Resume Studio, a local-first Electron resume editor.
 - Resume content must not be edited directly in runtime files. Use the MCP pending-patch flow for resume text changes.
-- Templates suite currently supports 4 distinct presets: Professional (专业商务), Classic (经典求职), Modern (现代风尚), and Executive (商务精英).
+- Templates suite currently supports 5 distinct presets: Ponnd (瑞士极简), Professional (求职极简), Classic (经典单栏), Modern (现代风尚), and Executive (商务精英).
 
 ## Completed In Current Round
 
+- Fixed ruleStyle normalization bug in `src/lib/styleSettings.js` so `thick` and `double` rule styles persist alongside `thin`, `bold`, and `none`.
+- Extracted shared template field style helpers (`linkStyleForField`, `mergeFieldStyle`) into `src/templates/shared.js`, deduplicating template code across templates.
+- Overhauled workbench UI in `src/index.css`, `src/components/TopBar.jsx`, and `src/components/LeftStylePanel.jsx` to a Ponnd / Swiss Editorial minimalist aesthetic (`#ffffff` pure paper, `#efefec` stone desk without dotted grid, `#141413` warm ink, icon-free 40px native-style titlebar, scrollbar-free inspector, and zero-shift field selection).
+- Added the `Ponnd` (`瑞士极简`) template in `src/templates/ponnd/index.jsx` with tight-tracked sans-serif typography, horizontal editorial header meta bar, and 1px hairline rules.
+- Unified `sectionHeadStyle` (`line`, `bar`, `pill`, `minimal`) across all 5 templates and fixed left-edge alignment for `.head-style-pill` and `.layout-block` skill rows.
 - Modern template added: elegant modern blue-toned palette, centered header with avatar drag support, accent line section dividers, and bold lead-in structured details.
 - Executive template added: 3-column skills grid, deep navy executive styling, modular section layouts, and dynamic section ordering.
 - Replaced the retired Editorial template with Modern and Executive templates, maintaining full suite test coverage across all 4 templates.

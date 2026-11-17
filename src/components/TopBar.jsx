@@ -24,8 +24,6 @@ export default function TopBar({
       ? "bridge 正在启动"
       : "bridge 未连接，AI 无法提交改动";
 
-  // Close the document menu on outside click or Escape so it never strands open
-  // over the canvas.
   useEffect(() => {
     if (!menuOpen) return;
     const onPointerDown = (event) => {
@@ -80,14 +78,18 @@ export default function TopBar({
   };
 
   return (
-    <header className="topbar" style={isDesktop ? { paddingLeft: "80px" } : {}}>
-      <a className="brand" href="#">
-        <span className={`brand-status ${statusClass}`} title={statusTitle} />
-        Resume Studio
-      </a>
+    <header className="topbar" style={isDesktop ? { paddingLeft: "84px" } : {}}>
+      <div className="topbar-left">
+        <a className="brand" href="#" title={statusTitle}>
+          <span className="brand-name">Resume Studio</span>
+          <span className={`brand-status ${statusClass}`} aria-label={statusTitle} />
+        </a>
+      </div>
 
       {(notice || currentFileName) && (
-        <div className="current-file">{notice || currentFileName}</div>
+        <div className="current-file" title={notice || currentFileName}>
+          <span>{notice || currentFileName}</span>
+        </div>
       )}
 
       <div className="topbar-actions">
@@ -98,29 +100,29 @@ export default function TopBar({
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((open) => !open)}
           >
-            文档
+            <span>文档</span>
           </button>
           {menuOpen && (
             <div className="doc-menu-list" role="menu">
               <button role="menuitem" onClick={handleSave} disabled={saving}>
-                {saving ? "保存中…" : "保存"}
+                <span>{saving ? "保存中…" : "保存"}</span>
               </button>
               <button role="menuitem" onClick={() => runMenuAction(onOpenLatest)}>
-                打开最近
+                <span>打开最近</span>
               </button>
               <button role="menuitem" onClick={() => runMenuAction(onOpenHistory)}>
-                历史版本
+                <span>历史版本</span>
               </button>
               <div className="doc-menu-rule" />
               <button role="menuitem" onClick={() => runMenuAction(onNewResume)}>
-                新建模板
+                <span>新建模板</span>
               </button>
             </div>
           )}
         </div>
 
-        <button className="primary" onClick={handleExportPdf} disabled={exporting}>
-          {exporting ? "导出中…" : "导出 PDF"}
+        <button className="primary export-pdf-btn" onClick={handleExportPdf} disabled={exporting}>
+          <span>{exporting ? "导出中…" : "导出 PDF"}</span>
         </button>
       </div>
     </header>

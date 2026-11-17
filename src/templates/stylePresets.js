@@ -3,6 +3,15 @@
 // src/templates/registry.js attaches these to each template entry.
 
 export const A4_COMPACT_PRESETS = {
+  ponnd: {
+    fontId: "system",
+    colorId: "black",
+    lineHeight: 1.38,
+    sectionGap: 8,
+    pagePadding: 26,
+    fontSize: { heading: 22, body: 10.5, muted: 9.5 },
+    ruleStyle: "thin"
+  },
   professional: {
     fontId: "serif",
     colorId: "black",

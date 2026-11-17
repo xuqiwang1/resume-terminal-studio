@@ -278,6 +278,7 @@ async function syncRuntimeDocument(documentPatch, { forceRevisionBump = false } 
       revision
     }
   });
+  syncPendingFromDisk();
   const result = currentRuntime().core.hydrateActiveDocument(context.document);
   if (result?.clearedPendingPatch) {
     broadcastPending();
@@ -439,6 +440,7 @@ const broadcastPending = () => {
 
 const hydrateRuntimeDocumentFromContext = async () => {
   const context = await readContextState();
+  syncPendingFromDisk();
   return currentRuntime().core.hydrateActiveDocument(context.document);
 };
 

@@ -222,6 +222,12 @@ export function textForField(resume, fid) {
   if (sectionId === "summary") return resume.summary || "";
   if (sectionId === "header") return resume[field] || "";
   const arr = resume[sectionId];
-  if (Array.isArray(arr) && arr[index]) return arr[index][field] || "";
+  if (Array.isArray(arr) && arr[index]) {
+    const val = arr[index][field] || "";
+    if (!val && sectionId === "education" && field === "degree" && arr.length >= 2) {
+      return index === 0 ? "硕士" : index === 1 ? "本科" : "";
+    }
+    return val;
+  }
   return "";
 }

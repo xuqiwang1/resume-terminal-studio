@@ -1,7 +1,15 @@
 import AnimatedText from "../../components/AnimatedText";
 import RichText from "../../components/RichText";
 import DraggableAvatar from "../../components/DraggableAvatar";
-import { fieldId, fieldClass, sectionClass, resolveSectionOrder } from "../shared";
+import { fieldId, fieldClass, sectionClass, resolveSectionOrder, linkStyleForField, mergeFieldStyle, resolveEducationDegree, hasEntryContent } from "../shared";
+
+function isSubheadingLine(trimmed) {
+  return (
+    trimmed.length > 0 &&
+    trimmed.length <= 28 &&
+    !/[。；！？，、：:【】]/.test(trimmed)
+  );
+}
 
 function StructuredText({ value }) {
   const lines = String(value || "").split("\n");
@@ -34,7 +42,7 @@ function StructuredText({ value }) {
           );
         }
 
-        if (/^[^【\n]+｜\d{4}\.\d{2}-\d{4}\.\d{2}$/.test(trimmed)) {
+        if (/^[^【\n]+｜\d{4}\.\d{2}-\d{4}\.\d{2}$/.test(trimmed) || isSubheadingLine(trimmed)) {
           return (
             <span className="modern-stage-line" key={index}>
               <RichText value={trimmed} fieldId={`structured.${index}`} />
@@ -62,15 +70,9 @@ export default function ModernTemplate({ resume, ctx }) {
 
   const fc = (sec, idx, field) => fieldClass(selectedField, sec, idx, field);
   const click = (e, fid) => { e.stopPropagation(); onFieldClick?.(fid); };
-  const fieldStyle = (fid) => fieldStyles[fid] || {};
-  const linkStyleFor = (fid) => {
-    const style = fieldStyles[fid] || {};
-    return {
-      "--r-link-color": style.linkColor || undefined,
-      "--r-link-decoration": style.linkUnderline === false ? "none" : undefined
-    };
-  };
-  const withFieldStyle = (fid, base = {}) => ({ ...base, ...fieldStyle(fid) });
+  const fieldStyle = (fid) => mergeFieldStyle(fieldStyles, fid);
+  const linkStyleFor = (fid) => linkStyleForField(fieldStyles, fid);
+  const withFieldStyle = (fid, base = {}) => mergeFieldStyle(fieldStyles, fid, base);
   const patchFor = (fid) => patchAnimation?.fieldId === fid ? patchAnimation : null;
   const renderField = (fid, value) => {
     const patch = patchFor(fid);
@@ -89,6 +91,7 @@ export default function ModernTemplate({ resume, ctx }) {
   const summaryText = resume.summary;
   const hasSummary = typeof summaryText === "string" && summaryText.trim().length > 0;
   const eduLayout = layoutConfig?.education || {};
+  const eduMode = eduLayout.mode || (education.length >= 2 ? "grid" : "stack");
   const schoolAlign = eduLayout.schoolAlign || "center";
   const majorAlign = eduLayout.majorAlign || "right";
   const skillsLayout = layoutConfig?.skills?.layout || "inline";
@@ -98,7 +101,7 @@ export default function ModernTemplate({ resume, ctx }) {
   const headerClass = `${sectionClass(activeSectionId, workingSection, "header").replace(
     "resume-section",
     "modern-header"
-  )}${headerStyle === "left" ? " header-left" : ""}`;
+  )}${headerStyle === "left" ? " header-left" : ""}${avatar ? " has-avatar" : ""}`;
 
   const renderSectionHead = (title) => (
     <div className={`modern-section-head head-style-${headStyle}`}>
@@ -211,6 +214,7 @@ export default function ModernTemplate({ resume, ctx }) {
       <section className={sectionClass(activeSectionId, workingSection, "projects")} data-section="projects" key="projects">
         {renderSectionHead("项目经历")}
         {resume.projects.map((item, index) => {
+          if (!hasEntryContent(item)) return null;
           const detailsFid = fieldId("projects", index, "details");
           return (
             <div className="modern-entry" key={`${item.name}-${item.date || index}`}>
@@ -234,7 +238,11 @@ export default function ModernTemplate({ resume, ctx }) {
     education: education.length > 0 ? (
       <section className={sectionClass(activeSectionId, workingSection, "education")} data-section="education" key="education">
         {renderSectionHead("教育背景")}
-        {education.map((item, index) => (
+        <div className={`modern-edu-list ${eduMode === "grid" && education.length >= 2 ? "edu-mode-grid" : "edu-mode-stack"}`}>
+        {education.map((item, index) => {
+          const degreeText = resolveEducationDegree(item, index, education.length);
+          const isPrimaryDegree = index === 0 && /硕|博|Master|PhD/i.test(degreeText);
+          return (
           <div className={`modern-edu-entry edu-school-${schoolAlign} edu-major-${majorAlign}`} key={`${item.school}-${item.date}-${index}`}>
             <span
               className={`modern-edu-date ${fc("education", index, "date")}`}
@@ -244,6 +252,15 @@ export default function ModernTemplate({ resume, ctx }) {
               {item.date}
             </span>
             <span className="modern-edu-school">
+              {degreeText && (
+                <span
+                  className={`edu-degree-badge ${isPrimaryDegree ? "is-primary" : "is-secondary"} ${fc("education", index, "degree")}`}
+                  onClick={(e) => click(e, fieldId("education", index, "degree"))}
+                  style={fieldStyle(fieldId("education", index, "degree"))}
+                >
+                  {degreeText}
+                </span>
+              )}
               <strong
                 className={fc("education", index, "school")}
                 onClick={(e) => click(e, fieldId("education", index, "school"))}
@@ -266,18 +283,12 @@ export default function ModernTemplate({ resume, ctx }) {
               onClick={(e) => click(e, fieldId("education", index, "major"))}
               style={withFieldStyle(fieldId("education", index, "major"), { fontSize: "var(--r-fs-body, 11.5px)" })}
             >
-              <span
-                className={fc("education", index, "degree")}
-                onClick={(e) => click(e, fieldId("education", index, "degree"))}
-                style={fieldStyle(fieldId("education", index, "degree"))}
-              >
-                {item.degree}
-              </span>
-              {item.degree && item.major ? " · " : ""}
               {item.major}
             </span>
           </div>
-        ))}
+          );
+        })}
+        </div>
       </section>
     ) : null
   };

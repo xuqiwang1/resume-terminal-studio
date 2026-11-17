@@ -6,13 +6,13 @@ import { SECTION_NAMES, resolveSectionOrder } from "../templates/shared";
 
 const FONT_OPTIONS = [
   { id: "system", label: "系统", family: "Inter, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" },
-  { id: "serif", label: "宋体", family: "'Noto Serif SC', 'Songti SC', 'SimSun', serif" },
+  { id: "serif", label: "宋体", family: "'Songti SC', 'STSong', 'Noto Serif SC', 'SimSun', serif" },
   { id: "kai", label: "楷体", family: "'Kaiti SC', 'STKaiti', 'KaiTi', serif" },
 ];
 
 const COLOR_SCHEMES = [
-  { id: "black", label: "纯黑", heading: "#000000", body: "#111111", muted: "#555555" },
-  { id: "charcoal", label: "炭灰", heading: "#1f2937", body: "#374151", muted: "#6b7280" },
+  { id: "black", label: "纯黑", heading: "#141413", body: "#1f1f1d", muted: "#6b6b65" },
+  { id: "charcoal", label: "炭灰", heading: "#2c2c2a", body: "#42423f", muted: "#787872" },
 ];
 
 const RULE_STYLES = [
@@ -60,10 +60,29 @@ function SliderRow({ label, value, children }) {
 
 function TemplatePicker({ templateId, onChangeTemplate }) {
   return (
-    <div className="lsp-group">
-      <label className="lsp-label">文档</label>
+    <div className="lsp-group lsp-template-group">
+      <label className="lsp-label">版式</label>
+      <div className="lsp-chips" role="radiogroup" aria-label="简历版式选择">
+        {TEMPLATE_REGISTRY.map((t) => {
+          const active = templateId === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              className={`lsp-chip${active ? " active" : ""}`}
+              onClick={() => onChangeTemplate?.(t.id)}
+              title={t.description}
+            >
+              {t.shortName || t.name}
+            </button>
+          );
+        })}
+      </div>
       <select
-        className="lsp-select"
+        className="lsp-select lsp-select-sr"
+        aria-label="选择简历模板"
         value={templateId}
         onChange={(e) => onChangeTemplate?.(e.target.value)}
       >
@@ -133,7 +152,7 @@ function DocumentInspector({
         <ColorChips activeColorId={colorId} onPickColor={(c) => onColorChange(c.id)} />
       </div>
 
-      <Fold title="字号">
+      <Fold title="字号" defaultOpen>
         <div style={{ display: "grid", gap: 6, width: "100%" }}>
           <SliderRow label="标题" value={fontSize.heading}>
             <input
@@ -162,7 +181,7 @@ function DocumentInspector({
         </div>
       </Fold>
 
-      <Fold title="密度">
+      <Fold title="密度" defaultOpen>
         <div style={{ display: "grid", gap: 8, width: "100%" }}>
           <SliderRow label="行距" value={lineHeight.toFixed(2)}>
             <input
@@ -191,7 +210,7 @@ function DocumentInspector({
         </div>
       </Fold>
 
-      <Fold title="装饰">
+      <Fold title="装饰" defaultOpen>
         <div className="lsp-subgroup">
           <label className="lsp-label">分隔线</label>
           <ChipGroup>
@@ -221,6 +240,26 @@ function DocumentInspector({
                 onClick={() => onLayoutConfigChange?.({
                   ...layoutConfig,
                   sectionHeadStyle: id
+                })}
+              >
+                {label}
+              </button>
+            ))}
+          </ChipGroup>
+        </div>
+        <div className="lsp-subgroup">
+          <label className="lsp-label">教育版式</label>
+          <ChipGroup>
+            {[
+              { id: "grid", label: "同行双列" },
+              { id: "stack", label: "上下分行" }
+            ].map(({ id, label }) => (
+              <button
+                key={id}
+                className={`lsp-chip ${(layoutConfig?.education?.mode || "grid") === id ? "active" : ""}`}
+                onClick={() => onLayoutConfigChange?.({
+                  ...layoutConfig,
+                  education: { ...(layoutConfig?.education || {}), mode: id }
                 })}
               >
                 {label}
@@ -465,6 +504,23 @@ function EducationInspector({ layoutConfig, onLayoutConfigChange }) {
     <div className="lsp-group">
       <label className="lsp-label">教育区块</label>
       <div style={{ display: "grid", gap: 8, width: "100%" }}>
+        <div className="inspector-row">
+          <span>版式</span>
+          <ChipGroup>
+            {[
+              { id: "grid", label: "同行双列" },
+              { id: "stack", label: "上下分行" }
+            ].map(({ id, label }) => (
+              <button
+                key={id}
+                className={`lsp-chip${(layoutConfig?.education?.mode || "grid") === id ? " active" : ""}`}
+                onClick={() => setEducationLayout({ mode: id })}
+              >
+                {label}
+              </button>
+            ))}
+          </ChipGroup>
+        </div>
         <div className="inspector-row">
           <span>学校</span>
           <ChipGroup>
